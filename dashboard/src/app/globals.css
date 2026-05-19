@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-accent: rgba(99, 102, 241, 0.3);
+  --text-primary: #f0f0f5;
+  --text-secondary: rgba(240, 240, 245, 0.55);
+  --text-muted: rgba(240, 240, 245, 0.35);
+  --accent: #818cf8;
+  --accent-dim: rgba(129, 140, 248, 0.15);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --radius-card: 18px;
+  --radius-badge: 10px;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass card */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  position: relative;
+}
+
+.glass-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+}
+
+/* Ensure interactive elements are clickable */
+button, a, input, select, textarea, [role="button"] {
+  position: relative;
+  z-index: 1;
+}
+
+/* Status dots */
+.dot-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-badge);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Markdown Prose ──────────────────────────────── */
+.md-prose { font-size: 0.8rem; line-height: 1.7; }
+.md-prose h1 { font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.85); margin: 1rem 0 0.5rem; }
+.md-prose h2 { font-size: 0.9rem; font-weight: 600; color: rgba(255,255,255,0.75); margin: 0.9rem 0 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 0.25rem; }
+.md-prose h3 { font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.6); margin: 0.75rem 0 0.3rem; }
+.md-prose h4, .md-prose h5, .md-prose h6 { font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.5); margin: 0.6rem 0 0.25rem; }
+.md-prose p { color: rgba(255,255,255,0.5); margin: 0.4rem 0; }
+.md-prose ul, .md-prose ol { color: rgba(255,255,255,0.45); padding-left: 1.25rem; margin: 0.35rem 0; }
+.md-prose li { margin: 0.12rem 0; }
+.md-prose li > ul, .md-prose li > ol { margin: 0.08rem 0; }
+.md-prose code:not(pre code) { font-family: var(--font-mono, monospace); font-size: 0.72rem; background: rgba(255,255,255,0.07); padding: 0.1rem 0.35rem; border-radius: 4px; color: rgba(255,255,255,0.65); }
+.md-prose pre { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 0.75rem 1rem; overflow-x: auto; margin: 0.5rem 0; }
+.md-prose pre code { font-family: var(--font-mono, monospace); font-size: 0.72rem; color: rgba(255,255,255,0.6); background: none; padding: 0; }
+.md-prose table { width: 100%; border-collapse: collapse; font-size: 0.73rem; margin: 0.5rem 0; }
+.md-prose thead th { color: rgba(255,255,255,0.55); font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.12); padding: 0.35rem 0.6rem; text-align: left; white-space: nowrap; }
+.md-prose tbody td { color: rgba(255,255,255,0.38); padding: 0.28rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.md-prose blockquote { border-left: 2px solid rgba(99,102,241,0.45); padding-left: 0.75rem; color: rgba(255,255,255,0.38); margin: 0.5rem 0; }
+.md-prose a { color: rgba(129,140,248,0.85); text-decoration: none; }
+.md-prose a:hover { text-decoration: underline; }
+.md-prose hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0.75rem 0; }
+.md-prose strong { color: rgba(255,255,255,0.7); font-weight: 600; }
+.md-prose em { color: rgba(255,255,255,0.45); font-style: italic; }

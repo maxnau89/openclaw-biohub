@@ -1,0 +1,15 @@
+[Unit]
+Description=WHOOP OAuth Callback Handler (openclaw-biohub)
+After=network.target
+
+[Service]
+Type=simple
+User=openclaw-biohub
+WorkingDirectory=/opt/openclaw-biohub/pipeline
+EnvironmentFile=/etc/openclaw-biohub/secrets.env
+ExecStart=/usr/bin/python3 adapters/whoop/oauth_handler.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+SYNTHETIC LAB CO.
+Patient: Sample User (DOB redacted)
+Sample collected: 2026-04-12
+
+Hemoglobin              14.8 g/dl      13.5-17.5
+WBC                      6.3 /nl        4.0-10.0
+Platelets              231 /nl        150-400
+Glucose                 88 mg/dl       70-100
+HbA1c (DCCT)            5.1 %           4.0-5.7
+Cholesterol            178 mg/dl        0-200
+LDL                    104 mg/dl        0-130
+HDL                     62 mg/dl       40-100
+Triglycerides          108 mg/dl        0-150
+ALT (GPT)               24 U/l          0-45
+AST (GOT)               21 U/l          0-35
+GGT                     19 U/l          0-55
+Creatinine             0.92 mg/dl     0.6-1.2
+eGFR                    98 ml/min/1.73m^2 >60
+Vitamin D               42 ng/ml      30-100
+Testosterone           5.8 ng/ml     2.5-8.4
+TSH                    1.8 mU/l      0.4-4.0
