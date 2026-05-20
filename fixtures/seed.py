@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Generate deterministic synthetic data for openclaw-biohub.
 
-Creates two SQLite files:
-  - $OPENCLAW_BIOHUB_HOME/data/health.db
-  - $OPENCLAW_BIOHUB_HOME/data/whoop_raw.db
+Creates SQLite files under $OPENCLAW_BIOHUB_HOME/data/:
 
-…matching the schema in `db/schema.sql` and populated with ~90 days of
-plausible (but invented) biometrics, a couple of blood panels, a small
-supplement stack, and a few weeks of nutrition logs.
+  - health.db (always — daily_metrics, blood, supplements, nutrition)
+  - whoop_raw.db                  (when --source includes whoop)
+  - oura_raw.db                   (when --source includes oura)
 
-Patterns are deliberately realistic so that the analytics surface
-behaves the same as it would on real data:
+90 days of plausible (but invented) biometrics, a couple of blood
+panels, a small supplement stack, and a few weeks of nutrition logs.
+
+Patterns are deliberately realistic so the analytics surface behaves
+the same as it would on real data:
   - HRV correlates positively with recovery_score
   - Sleep hours correlates positively with sleep_performance_percentage
   - High daily_strain on day N → lower recovery_score on day N+1
@@ -18,11 +19,14 @@ behaves the same as it would on real data:
 
 Run:
     OPENCLAW_BIOHUB_HOME=/tmp/oh python3 fixtures/seed.py
+    OPENCLAW_BIOHUB_HOME=/tmp/oh python3 fixtures/seed.py --source oura
+    OPENCLAW_BIOHUB_HOME=/tmp/oh python3 fixtures/seed.py --source all
 
 Idempotent: drops and recreates the DBs on each run.
 """
 from __future__ import annotations
 
+import argparse
 import os
 import random
 import sqlite3
@@ -34,13 +38,14 @@ SEED = 42
 DAYS = 90
 USER_ID = 1
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+ADAPTERS_DIR = Path(__file__).resolve().parent.parent / "pipeline" / "adapters"
 
 
-def resolve_paths() -> tuple[Path, Path]:
+def resolve_data_dir() -> Path:
     home = Path(os.environ.get("OPENCLAW_BIOHUB_HOME", "/opt/openclaw-biohub"))
     data_dir = home / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir / "health.db", data_dir / "whoop_raw.db"
+    return data_dir
 
 
 def split_schema(text: str) -> tuple[str, str]:
@@ -301,28 +306,168 @@ def generate_health(conn: sqlite3.Connection, daily_rollup: list[dict]) -> None:
         )
 
 
+def generate_oura(conn: sqlite3.Connection, hconn: sqlite3.Connection) -> int:
+    """Populate oura_raw.db with 90 days of plausible data + roll daily_metrics
+    rows into health.db with source='oura'. Returns daily_metrics rows added.
+
+    Uses a different RNG offset from WHOOP so the same `date` yields
+    visibly different numbers — useful for demos with --source all.
+    """
+    rng = random.Random(SEED + 17)
+    schema_path = ADAPTERS_DIR / "oura" / "schema.sql"
+    conn.executescript(schema_path.read_text())
+
+    start = datetime.now(timezone.utc).replace(tzinfo=None).replace(
+        hour=8, minute=0, second=0, microsecond=0
+    ) - timedelta(days=DAYS - 1)
+
+    rolled = 0
+    for i in range(DAYS):
+        dt = start + timedelta(days=i)
+        day = dt.strftime("%Y-%m-%d")
+
+        # Mildly different distributions vs WHOOP so multi-source demos
+        # show distinct rows for the same date.
+        hrv = round(max(28, min(90, rng.gauss(56, 8))), 1)
+        rhr = round(max(48, min(78, rng.gauss(62, 4))))
+        spo2 = round(max(93, min(100, rng.gauss(97, 0.5))), 2)
+        sleep_seconds = int(max(4 * 3600, min(9.5 * 3600, rng.gauss(7.4 * 3600, 1800))))
+        deep_seconds = int(sleep_seconds * rng.uniform(0.16, 0.22))
+        rem_seconds = int(sleep_seconds * rng.uniform(0.18, 0.26))
+        light_seconds = sleep_seconds - deep_seconds - rem_seconds
+        sleep_efficiency = round(rng.uniform(0.85, 0.98), 3)
+        sleep_score = round(min(100, max(40, (sleep_seconds / 3600 - 4) * 12 + rng.gauss(0, 5))))
+        readiness_score = round(min(100, max(30, 0.5 * (hrv - 30) + rng.gauss(60, 7))))
+        steps = rng.randint(4000, 13000)
+        active_min = rng.randint(15, 80)
+        calories = rng.randint(2200, 3000)
+        temp_dev = round(rng.gauss(-0.05, 0.15), 2)
+
+        # daily_sleep (score)
+        conn.execute(
+            "INSERT INTO daily_sleep (id, day, score, timestamp) VALUES (?,?,?,?)",
+            (f"ds-{day}", day, sleep_score, dt.isoformat()),
+        )
+        # sleep_session (the main sleep block)
+        conn.execute(
+            "INSERT INTO sleep_session (id, day, type, total_sleep_duration, "
+            "awake_time, light_sleep_duration, rem_sleep_duration, "
+            "deep_sleep_duration, sleep_efficiency, average_heart_rate, "
+            "lowest_heart_rate, average_hrv, restless_periods) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (f"ss-{day}", day, "long_sleep", sleep_seconds,
+             int(sleep_seconds * 0.05), light_seconds, rem_seconds,
+             deep_seconds, sleep_efficiency, rhr + 5, rhr, hrv,
+             rng.randint(2, 10)),
+        )
+        # daily_readiness
+        conn.execute(
+            "INSERT INTO daily_readiness (id, day, score, temperature_deviation, "
+            "timestamp) VALUES (?,?,?,?,?)",
+            (f"dr-{day}", day, readiness_score, temp_dev, dt.isoformat()),
+        )
+        # daily_activity
+        conn.execute(
+            "INSERT INTO daily_activity (id, day, score, steps, active_calories, "
+            "total_calories, high_activity_time, medium_activity_time, "
+            "low_activity_time, sedentary_time, timestamp) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (f"da-{day}", day, rng.randint(60, 95), steps,
+             int(calories * 0.25), calories,
+             active_min * 60, rng.randint(20, 60) * 60,
+             rng.randint(60, 180) * 60, rng.randint(8, 14) * 3600,
+             dt.isoformat()),
+        )
+        # daily_spo2
+        conn.execute(
+            "INSERT INTO daily_spo2 (id, day, spo2_percentage_average, "
+            "spo2_percentage_lowest) VALUES (?,?,?,?)",
+            (f"sp-{day}", day, spo2, round(spo2 - rng.uniform(1, 3), 2)),
+        )
+
+        # Mirror into health.db daily_metrics with source='oura'
+        hconn.execute(
+            "INSERT OR REPLACE INTO daily_metrics "
+            "(source, date, recovery_score, hrv_ms, resting_hr, spo2, "
+            "skin_temp_c, sleep_performance, sleep_hours, sleep_efficiency, "
+            "rem_hours, deep_sleep_hours, light_sleep_hours, calories_burned, "
+            "steps, active_minutes) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("oura", day, readiness_score, hrv, rhr, spo2, temp_dev,
+             sleep_score, round(sleep_seconds / 3600.0, 2), sleep_efficiency,
+             round(rem_seconds / 3600.0, 2), round(deep_seconds / 3600.0, 2),
+             round(light_seconds / 3600.0, 2), calories, steps, active_min),
+        )
+        rolled += 1
+    return rolled
+
+
 def main() -> int:
-    health_db_path, whoop_db_path = resolve_paths()
-    for p in (health_db_path, whoop_db_path):
-        if p.exists():
-            p.unlink()
+    parser = argparse.ArgumentParser(description="openclaw-biohub fixture seeder")
+    parser.add_argument(
+        "--source", default="whoop",
+        choices=["whoop", "oura", "all"],
+        help="Which adapter(s) to seed (default: whoop)",
+    )
+    args = parser.parse_args()
+
+    sources = {"whoop", "oura"} if args.source == "all" else {args.source}
+
+    data_dir = resolve_data_dir()
+    health_db_path = data_dir / "health.db"
+    whoop_db_path = data_dir / "whoop_raw.db"
+    oura_db_path = data_dir / "oura_raw.db"
+
+    # Wipe per-source raw DBs we're about to repopulate; recreate health.db
+    health_db_path.unlink(missing_ok=True)
+    if "whoop" in sources:
+        whoop_db_path.unlink(missing_ok=True)
+    if "oura" in sources:
+        oura_db_path.unlink(missing_ok=True)
 
     schema_text = SCHEMA_FILE.read_text()
     db1_ddl, db2_ddl = split_schema(schema_text)
 
-    with sqlite3.connect(whoop_db_path) as wconn:
-        apply_schema(wconn, db2_ddl)
-        rollup = generate_whoop(wconn)
-        wconn.commit()
-
-    with sqlite3.connect(health_db_path) as hconn:
+    # Initialize health.db (always)
+    hconn = sqlite3.connect(health_db_path)
+    try:
         apply_schema(hconn, db1_ddl)
-        generate_health(hconn, rollup)
-        hconn.commit()
 
-    print(f"Wrote {DAYS} days of synthetic data:")
+        # WHOOP
+        if "whoop" in sources:
+            with sqlite3.connect(whoop_db_path) as wconn:
+                apply_schema(wconn, db2_ddl)
+                rollup = generate_whoop(wconn)
+                wconn.commit()
+            generate_health(hconn, rollup)
+
+        # Oura
+        if "oura" in sources:
+            with sqlite3.connect(oura_db_path) as oconn:
+                n = generate_oura(oconn, hconn)
+                oconn.commit()
+
+            # Blood / supplements / nutrition are source-agnostic; only
+            # seed them if WHOOP didn't already (since generate_health()
+            # does that as a side effect).
+            if "whoop" not in sources:
+                # Reuse the WHOOP daily_rollup format with dummy values just
+                # so generate_health()'s blood / supplements / nutrition
+                # blocks run. The whoop_daily writes are no-ops in this
+                # branch because they go into daily_metrics with source='whoop'
+                # and rollup is an empty list.
+                generate_health(hconn, [])
+
+        hconn.commit()
+    finally:
+        hconn.close()
+
+    print(f"Wrote {DAYS} days of synthetic data ({', '.join(sorted(sources))}):")
     print(f"  {health_db_path}")
-    print(f"  {whoop_db_path}")
+    if "whoop" in sources:
+        print(f"  {whoop_db_path}")
+    if "oura" in sources:
+        print(f"  {oura_db_path}")
     return 0
 
 
