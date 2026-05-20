@@ -20,7 +20,7 @@ from biohub.registry import ADAPTERS, all_adapters, get_adapter
 
 
 def test_registry_contains_all_v0_2_adapters():
-    expected = {"whoop", "oura", "fitbit", "apple-health"}
+    expected = {"whoop", "oura", "fitbit", "apple-health", "garmin"}
     assert expected == set(ADAPTERS)
 
 
@@ -35,9 +35,9 @@ def test_get_adapter_unknown_slug_raises():
 
 
 def test_all_adapters_in_registry_order():
-    """Display order is WhoopAdapter, OuraAdapter, FitbitAdapter, AppleHealthAdapter."""
+    """Stable adapters first; experimental at the bottom."""
     slugs = [a.slug for a in all_adapters()]
-    assert slugs == ["whoop", "oura", "fitbit", "apple-health"]
+    assert slugs == ["whoop", "oura", "fitbit", "apple-health", "garmin"]
 
 
 # ─── list-adapters ───────────────────────────────────────────────────────────
@@ -59,13 +59,14 @@ def test_list_adapters_prints_all_four(capsys, monkeypatch, tmp_path):
     rc = cli.main(["list-adapters"])
     assert rc == 0
     out = capsys.readouterr().out
-    # Header + 4 adapter rows
-    for slug in ("whoop", "oura", "fitbit", "apple-health"):
+    # Header + 5 adapter rows
+    for slug in ("whoop", "oura", "fitbit", "apple-health", "garmin"):
         assert slug in out
     # None configured (tmp dir has no secrets/)
     assert "no" in out
-    # Stable markers present, no experimental yet
+    # Stable + experimental markers both present
     assert "stable" in out
+    assert "EXPERIMENTAL" in out
 
 
 def test_list_adapters_marks_configured(monkeypatch, tmp_path, capsys):

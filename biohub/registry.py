@@ -19,15 +19,18 @@ if str(_PIPELINE_DIR) not in sys.path:
 from adapters.apple_health.sync import AppleHealthAdapter
 from adapters.base import BiometricAdapter
 from adapters.fitbit.sync import FitbitAdapter
+from adapters.garmin.sync import GarminAdapter
 from adapters.oura.sync import OuraAdapter
 from adapters.whoop.sync import WhoopAdapter
 
 # Order here determines display order in `biohub list-adapters`.
+# Stable adapters first, experimental at the bottom.
 _ADAPTER_CLASSES: list[Type[BiometricAdapter]] = [
     WhoopAdapter,
     OuraAdapter,
     FitbitAdapter,
     AppleHealthAdapter,
+    GarminAdapter,
 ]
 
 ADAPTERS: dict[str, Type[BiometricAdapter]] = {

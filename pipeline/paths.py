@@ -17,6 +17,7 @@ WHOOP_DB = Path(os.environ.get("WHOOP_DB_PATH", BIOHUB_HOME / "data" / "whoop_ra
 OURA_DB = Path(os.environ.get("OURA_DB_PATH", BIOHUB_HOME / "data" / "oura_raw.db"))
 APPLE_HEALTH_DB = Path(os.environ.get("APPLE_HEALTH_DB_PATH", BIOHUB_HOME / "data" / "apple_health_raw.db"))
 FITBIT_DB = Path(os.environ.get("FITBIT_DB_PATH", BIOHUB_HOME / "data" / "fitbit_raw.db"))
+GARMIN_DB = Path(os.environ.get("GARMIN_DB_PATH", BIOHUB_HOME / "data" / "garmin_raw.db"))
 
 SECRETS_DIR = Path(os.environ.get("OPENCLAW_BIOHUB_SECRETS_DIR", BIOHUB_HOME / "secrets"))
 WHOOP_CREDS_FILE = SECRETS_DIR / "whoop_credentials.json"
