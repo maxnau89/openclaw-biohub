@@ -204,14 +204,14 @@ def generate_whoop(conn: sqlite3.Connection) -> list[dict]:
 def generate_health(conn: sqlite3.Connection, daily_rollup: list[dict]) -> None:
     rng = random.Random(SEED + 1)
 
-    # whoop_daily (mirrors WHOOP raw, normalized)
+    # daily_metrics rollup (source-agnostic; WHOOP is the source here)
     for row in daily_rollup:
         conn.execute(
-            "INSERT INTO whoop_daily (date, recovery_score, hrv_ms, resting_hr, spo2, "
+            "INSERT INTO daily_metrics (source, date, recovery_score, hrv_ms, resting_hr, spo2, "
             "skin_temp_c, sleep_performance, sleep_hours, sleep_efficiency, rem_hours, "
             "deep_sleep_hours, light_sleep_hours, day_strain, calories_burned) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (row["date"], row["recovery_score"], row["hrv_ms"], row["resting_hr"],
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("whoop", row["date"], row["recovery_score"], row["hrv_ms"], row["resting_hr"],
              row["spo2"], row["skin_temp_c"], row["sleep_performance"],
              row["sleep_hours"], row["sleep_efficiency"], row["rem_hours"],
              row["deep_sleep_hours"], row["light_sleep_hours"],

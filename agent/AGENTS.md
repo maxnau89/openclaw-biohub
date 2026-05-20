@@ -10,7 +10,7 @@ Two SQLite databases, both under `$OPENCLAW_BIOHUB_HOME/data/`:
 - **`whoop_raw.db`** — `recovery_data`, `sleep_data`, `workout_data`,
   `cycles_data`, `user_profile`, `body_measurements`, `glucose_data`,
   `cgm_glucose`.
-- **`health.db`** — `whoop_daily`, `blood_panels`, `blood_markers`,
+- **`health.db`** — `daily_metrics`, `blood_panels`, `blood_markers`,
   `nutrition_logs`, `supplements`, `supplement_log`.
 
 The full schema is in `db/schema.sql`.
@@ -31,7 +31,7 @@ sqlite3 "$WHOOP_DB" \
 # Daily trends
 sqlite3 "$HEALTH_DB" \
   "SELECT date, recovery_score, hrv_ms, sleep_hours
-   FROM whoop_daily ORDER BY date DESC LIMIT 7"
+   FROM daily_metrics ORDER BY date DESC LIMIT 7"
 ```
 
 For richer analytics, prefer the Python helpers under `pipeline/`

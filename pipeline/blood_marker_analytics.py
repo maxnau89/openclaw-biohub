@@ -179,7 +179,7 @@ def main():
         whoop_rows = conn.execute(
             "SELECT date, recovery_score, hrv_ms, resting_hr, sleep_hours, "
             "sleep_performance, day_strain "
-            "FROM whoop_daily WHERE recovery_score IS NOT NULL ORDER BY date"
+            "FROM daily_metrics WHERE recovery_score IS NOT NULL ORDER BY date"
         ).fetchall()
 
         if len(whoop_rows) >= 3:

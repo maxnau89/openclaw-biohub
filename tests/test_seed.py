@@ -12,7 +12,9 @@ def test_seed_row_counts_are_reasonable(openclaw_home):
     whoop_db = openclaw_home / "data" / "whoop_raw.db"
 
     with sqlite3.connect(health_db) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM whoop_daily").fetchone()[0] == 90
+        assert conn.execute(
+            "SELECT COUNT(*) FROM daily_metrics WHERE source = 'whoop'"
+        ).fetchone()[0] == 90
         assert conn.execute("SELECT COUNT(*) FROM blood_panels").fetchone()[0] == 2
         n_markers = conn.execute("SELECT COUNT(*) FROM blood_markers").fetchone()[0]
         assert 20 < n_markers < 40
@@ -32,7 +34,9 @@ def test_recovery_in_plausible_range(openclaw_home):
     """The calibrated formula should keep recovery centered around 60-75%."""
     health_db = openclaw_home / "data" / "health.db"
     with sqlite3.connect(health_db) as conn:
-        avg = conn.execute("SELECT AVG(recovery_score) FROM whoop_daily").fetchone()[0]
+        avg = conn.execute(
+            "SELECT AVG(recovery_score) FROM daily_metrics WHERE source = 'whoop'"
+        ).fetchone()[0]
     assert 50 < avg < 85, f"avg recovery {avg} outside plausible band"
 
 

@@ -1,19 +1,21 @@
--- openclaw-health schema
--- Carved from the original mission-control.db + whoop_analytics.db.
--- Non-health tables (tasks, calendar, memories, content_pipeline, team_members,
--- system_status) are intentionally excluded.
-
--- Two logical DBs, mirroring the runtime split between raw WHOOP data and
--- normalized daily/clinical data. Apply each statement block to its own
--- SQLite file.
+-- openclaw-biohub schema
+-- Multi-source personal-health schema. health.db is source-agnostic
+-- (any adapter rolls daily metrics into daily_metrics). Each adapter
+-- keeps its own raw payload DB.
+--
+-- Apply each `-- DB N:` block to its own SQLite file.
 
 -- ============================================================
--- DB 1: health.db  (was: mission-control.db, health tables only)
+-- DB 1: health.db  (source-agnostic — blood, supplements, nutrition,
+--                   plus daily_metrics rollup from any adapter)
 -- ============================================================
 
-CREATE TABLE whoop_daily (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT UNIQUE NOT NULL,
+-- daily_metrics: one row per (source, date). Adapters INSERT OR REPLACE
+-- on the composite primary key. Columns are best-effort common ground;
+-- a missing column for a given source is simply NULL.
+CREATE TABLE daily_metrics (
+    source TEXT NOT NULL,            -- "whoop" | "oura" | "fitbit" | "apple-health" | "garmin"
+    date TEXT NOT NULL,              -- ISO YYYY-MM-DD in the user's local TZ
     recovery_score INTEGER,
     hrv_ms REAL,
     resting_hr INTEGER,
@@ -27,10 +29,14 @@ CREATE TABLE whoop_daily (
     light_sleep_hours REAL,
     day_strain REAL,
     calories_burned INTEGER,
+    steps INTEGER,                   -- added for non-WHOOP sources
+    active_minutes INTEGER,          -- added for non-WHOOP sources
     notes TEXT,
-    created_at INTEGER DEFAULT (strftime('%s','now') * 1000)
+    created_at INTEGER DEFAULT (strftime('%s','now') * 1000),
+    PRIMARY KEY (source, date)
 );
-CREATE INDEX idx_whoop_daily_date ON whoop_daily(date DESC);
+CREATE INDEX idx_daily_metrics_date ON daily_metrics(date DESC);
+CREATE INDEX idx_daily_metrics_source ON daily_metrics(source);
 
 CREATE TABLE blood_panels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

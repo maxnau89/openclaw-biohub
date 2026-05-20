@@ -18,7 +18,7 @@ Two SQLite databases under `$OPENCLAW_BIOHUB_HOME/data/`:
 - **`whoop_raw.db`** — raw WHOOP API data: `recovery_data`, `sleep_data`,
   `workout_data`, `cycles_data`, `user_profile`, `body_measurements`,
   `glucose_data`, `cgm_glucose`.
-- **`health.db`** — normalized cross-source data: `whoop_daily` (daily
+- **`health.db`** — normalized cross-source data: `daily_metrics` (daily
   rollup), `blood_panels` + `blood_markers`, `supplements` +
   `supplement_log`, `nutrition_logs`.
 
@@ -54,7 +54,7 @@ HEALTH_DB="${HEALTH_DB_PATH:-$HEALTH_HOME/data/health.db}"
 # Latest 7 days of recovery
 sqlite3 "$HEALTH_DB" \
   "SELECT date, recovery_score, hrv_ms, sleep_hours
-   FROM whoop_daily ORDER BY date DESC LIMIT 7"
+   FROM daily_metrics ORDER BY date DESC LIMIT 7"
 
 # Latest blood-panel results, with reference-range flags
 sqlite3 "$HEALTH_DB" \

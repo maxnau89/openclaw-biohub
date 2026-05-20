@@ -297,8 +297,8 @@ export function getWhoopData(): WhoopData {
     try {
       const tables = (mcDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(t => t.name);
 
-      if (tables.includes('whoop_daily')) {
-        daily = mcDb.prepare('SELECT * FROM whoop_daily ORDER BY date DESC').all() as DailyRow[];
+      if (tables.includes('daily_metrics')) {
+        daily = mcDb.prepare('SELECT * FROM daily_metrics ORDER BY date DESC').all() as DailyRow[];
       }
 
       if (tables.includes('blood_panels')) {

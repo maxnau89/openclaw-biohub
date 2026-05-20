@@ -313,10 +313,12 @@ def log_sync(conn, data_type, count, success, error=None):
     """, (data_type, datetime.now(timezone.utc).isoformat(), count, success, error))
 
 MC_DB_FILE = HEALTH_DB
+SOURCE = "whoop"  # value written to daily_metrics.source
 
 def sync_daily_aggregates():
-    """Rebuild whoop_daily in health.db from whoop_raw.db."""
-    print("Syncing whoop_daily aggregates...")
+    """Roll up daily WHOOP aggregates from whoop_raw.db into health.db's
+    source-agnostic `daily_metrics` table (one row per (source, date))."""
+    print("Syncing WHOOP daily aggregates -> daily_metrics...")
     if not MC_DB_FILE.exists():
         print(f"  health.db not found at {MC_DB_FILE}")
         return 0
@@ -325,8 +327,8 @@ def sync_daily_aggregates():
     src.row_factory = sqlite3.Row
     dst = sqlite3.connect(MC_DB_FILE)
 
-    # Find latest date already in whoop_daily
-    cur = dst.execute("SELECT MAX(date) FROM whoop_daily")
+    # Find latest WHOOP-sourced date already in daily_metrics
+    cur = dst.execute("SELECT MAX(date) FROM daily_metrics WHERE source = ?", (SOURCE,))
     last_date = cur.fetchone()[0] or "2000-01-01"
     print(f"  Updating from {last_date}...")
 
@@ -359,12 +361,12 @@ def sync_daily_aggregates():
     now_ts = int(datetime.now(timezone.utc).timestamp())
     for row in rows:
         dst.execute("""
-            INSERT INTO whoop_daily
-                (date, recovery_score, hrv_ms, resting_hr, spo2, skin_temp_c,
+            INSERT INTO daily_metrics
+                (source, date, recovery_score, hrv_ms, resting_hr, spo2, skin_temp_c,
                  sleep_performance, sleep_hours, sleep_efficiency, rem_hours,
                  deep_sleep_hours, light_sleep_hours, day_strain, calories_burned, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(date) DO UPDATE SET
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source, date) DO UPDATE SET
                 recovery_score=excluded.recovery_score, hrv_ms=excluded.hrv_ms,
                 resting_hr=excluded.resting_hr, spo2=excluded.spo2,
                 skin_temp_c=excluded.skin_temp_c, sleep_performance=excluded.sleep_performance,
@@ -372,7 +374,7 @@ def sync_daily_aggregates():
                 rem_hours=excluded.rem_hours, deep_sleep_hours=excluded.deep_sleep_hours,
                 light_sleep_hours=excluded.light_sleep_hours, day_strain=excluded.day_strain,
                 calories_burned=excluded.calories_burned
-        """, (row["date"], row["recovery_score"], row["hrv_ms"], row["resting_hr"],
+        """, (SOURCE, row["date"], row["recovery_score"], row["hrv_ms"], row["resting_hr"],
               row["spo2"], row["skin_temp_c"], row["sleep_performance"], row["sleep_hours"],
               row["sleep_efficiency"], row["rem_hours"], row["deep_sleep_hours"],
               row["light_sleep_hours"], row["day_strain"], row["calories_burned"], now_ts))
@@ -381,44 +383,120 @@ def sync_daily_aggregates():
     dst.commit()
     src.close()
     dst.close()
-    print(f"  Updated {count} daily rows in whoop_daily")
+    print(f"  Updated {count} rows in daily_metrics (source={SOURCE})")
     return count
+
+
+from adapters.base import BiometricAdapter, SyncResult
+
+
+class WhoopAdapter(BiometricAdapter):
+    """Reference implementation of `BiometricAdapter` for the WHOOP API.
+
+    OAuth credentials live in `$OPENCLAW_BIOHUB_HOME/secrets/whoop.json`
+    (or, on production deploys, in `/etc/openclaw-biohub/secrets.env`
+    consumed by the `whoop-oauth-handler.service` systemd unit). Tokens
+    are refreshed automatically by that OAuth handler on port 8893.
+    """
+
+    slug = "whoop"
+    display_name = "WHOOP"
+    raw_db_name = "whoop_raw.db"
+    stability = "stable"
+    requires_oauth = True
+
+    def setup_instructions(self) -> str:
+        return """\
+**WHOOP** pulls recovery score, HRV (rmssd), resting heart rate, SpO₂,
+skin temperature, sleep stages, daily strain, and workouts (with HR
+zones) from the official WHOOP Developer API.
+
+Setup involves three steps:
+
+1. **Create a WHOOP developer app.** Sign in with your WHOOP athlete
+   account at <https://developer.whoop.com> and click *Create App*.
+   Note the `client_id` and `client_secret`.
+
+2. **Set the redirect URI** in the app settings. For a local-only
+   install use `http://localhost:8893/callback`. For a production
+   deploy with a public reverse proxy, use
+   `https://YOUR_HOST/whoop/callback`.
+
+3. **Install + start the OAuth handler service.**
+   `whoop-oauth-handler.service` (see `systemd/`) listens on port
+   8893 and refreshes access tokens on demand. Once running, visit
+   `http://localhost:8893/login` (or the public callback URL) in a
+   browser to complete the OAuth grant.
+
+After authorization, tokens are cached at
+`$OPENCLAW_BIOHUB_HOME/secrets/whoop_credentials.json` and refreshed
+automatically before each sync.
+"""
+
+    def configure_interactive(self) -> None:
+        import getpass
+        import json
+        print("Enter your WHOOP developer app credentials:")
+        client_id = input("  client_id: ").strip()
+        client_secret = getpass.getpass("  client_secret: ").strip()
+        redirect_uri = input(
+            "  redirect_uri [http://localhost:8893/callback]: "
+        ).strip() or "http://localhost:8893/callback"
+        self.secrets_path.parent.mkdir(parents=True, exist_ok=True)
+        self.secrets_path.write_text(json.dumps({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+        }))
+        self.secrets_path.chmod(0o600)
+        print(f"Saved to {self.secrets_path}")
+        print(
+            "\nNext: install the OAuth handler systemd unit "
+            "(see CONFIGURATION.md) and complete the browser OAuth flow."
+        )
+
+    def sync(self, since: str | None = None, limit: int | None = None) -> SyncResult:
+        token = load_token()
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        inserted = 0
+        try:
+            try:
+                sync_profile(conn, token)
+                conn.commit()
+            except Exception as e:
+                print(f"  Profile sync error: {e}")
+
+            for name, fn in [("cycles", sync_cycles), ("recovery", sync_recovery),
+                             ("sleep", sync_sleep), ("workouts", sync_workouts)]:
+                try:
+                    count = fn(conn, token)
+                    inserted += count
+                    log_sync(conn, name, count, True)
+                    conn.commit()
+                except Exception as e:
+                    print(f"  {name} sync error: {e}")
+                    log_sync(conn, name, 0, False, str(e))
+                    conn.commit()
+                    return SyncResult(rows_inserted=inserted, error=f"{name}: {e}")
+            return SyncResult(rows_inserted=inserted)
+        finally:
+            conn.close()
+
+    def rollup_to_health_db(self) -> int:
+        return sync_daily_aggregates()
 
 
 def main():
     print(f"WHOOP Sync — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    token = load_token()
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-
+    adapter = WhoopAdapter()
+    result = adapter.sync()
     try:
-        sync_profile(conn, token)
-        conn.commit()
-    except Exception as e:
-        print(f"  Profile sync error: {e}")
-
-    total = 0
-    for name, fn in [("cycles", sync_cycles), ("recovery", sync_recovery),
-                     ("sleep", sync_sleep), ("workouts", sync_workouts)]:
-        try:
-            count = fn(conn, token)
-            total += count
-            log_sync(conn, name, count, True)
-            conn.commit()
-        except Exception as e:
-            print(f"  {name} sync error: {e}")
-            log_sync(conn, name, 0, False, str(e))
-            conn.commit()
-
-    conn.close()
-
-    # Update dashboard daily aggregates
-    try:
-        sync_daily_aggregates()
+        adapter.rollup_to_health_db()
     except Exception as e:
         print(f"  Daily aggregate sync error: {e}")
+    print(f"\nDone. {result}")
 
-    print(f"\nDone. Total records synced: {total}")
 
 if __name__ == "__main__":
     main()

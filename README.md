@@ -120,7 +120,7 @@ For someone wiring up Fitbit, Garmin, Oura, or another source:
 2. Create `pipeline/adapters/<source>/` with `sync.py` (+ `oauth_handler.py`
    if the source uses OAuth + a refresh-token flow). Mirror the WHOOP
    adapter's pattern.
-3. Extend `whoop_daily` (or rename it to `daily`) in `health.db` with the
+3. Extend `daily_metrics` (or rename it to `daily`) in `health.db` with the
    fields your adapter emits — the dashboard reads from `health.db`, not
    the raw DBs.
 4. Add fixtures to `fixtures/seed.py` and tests under `tests/`.
