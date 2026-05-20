@@ -1,0 +1,59 @@
+{
+  "data": [
+    {
+      "id": "da-2026-05-15",
+      "day": "2026-05-15",
+      "score": 84,
+      "steps": 9420,
+      "active_calories": 612,
+      "total_calories": 2680,
+      "target_calories": 600,
+      "equivalent_walking_distance": 7200,
+      "high_activity_time": 1500,
+      "medium_activity_time": 2700,
+      "low_activity_time": 7200,
+      "sedentary_time": 23400,
+      "non_wear_time": 0,
+      "resting_time": 26400,
+      "average_met_minutes": 1.65,
+      "timestamp": "2026-05-15T04:00:00+00:00"
+    },
+    {
+      "id": "da-2026-05-16",
+      "day": "2026-05-16",
+      "score": 78,
+      "steps": 7560,
+      "active_calories": 480,
+      "total_calories": 2540,
+      "target_calories": 600,
+      "equivalent_walking_distance": 5800,
+      "high_activity_time": 900,
+      "medium_activity_time": 2100,
+      "low_activity_time": 6600,
+      "sedentary_time": 27000,
+      "non_wear_time": 0,
+      "resting_time": 26100,
+      "average_met_minutes": 1.42,
+      "timestamp": "2026-05-16T04:00:00+00:00"
+    },
+    {
+      "id": "da-2026-05-17",
+      "day": "2026-05-17",
+      "score": 91,
+      "steps": 11280,
+      "active_calories": 740,
+      "total_calories": 2820,
+      "target_calories": 600,
+      "equivalent_walking_distance": 8500,
+      "high_activity_time": 2100,
+      "medium_activity_time": 3300,
+      "low_activity_time": 7800,
+      "sedentary_time": 21600,
+      "non_wear_time": 0,
+      "resting_time": 25800,
+      "average_met_minutes": 1.84,
+      "timestamp": "2026-05-17T04:00:00+00:00"
+    }
+  ],
+  "next_token": null
+}

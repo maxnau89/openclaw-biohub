@@ -4,6 +4,11 @@
 -- keeps its own raw payload DB.
 --
 -- Apply each `-- DB N:` block to its own SQLite file.
+--
+-- Note: adapter-specific raw schemas live with their adapters:
+--   pipeline/adapters/<slug>/schema.sql
+-- The WHOOP raw schema below is historical; new adapters (Oura, Fitbit,
+-- Apple Health, Garmin, …) own their own. See CONTRIBUTING.md.
 
 -- ============================================================
 -- DB 1: health.db  (source-agnostic — blood, supplements, nutrition,

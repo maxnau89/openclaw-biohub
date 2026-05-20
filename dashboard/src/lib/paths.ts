@@ -12,6 +12,9 @@ export const HEALTH_DB =
 export const WHOOP_DB =
   process.env.WHOOP_DB_PATH || path.join(BIOHUB_HOME, 'data', 'whoop_raw.db');
 
+export const OURA_DB =
+  process.env.OURA_DB_PATH || path.join(BIOHUB_HOME, 'data', 'oura_raw.db');
+
 export const SECRETS_DIR =
   process.env.OPENCLAW_BIOHUB_SECRETS_DIR || path.join(BIOHUB_HOME, 'secrets');
 

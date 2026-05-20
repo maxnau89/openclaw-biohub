@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "id": "sp-2026-05-15",
+      "day": "2026-05-15",
+      "spo2_percentage": { "average": 97.2, "lowest": 95.0 },
+      "breathing_disturbance_index": 1.2
+    },
+    {
+      "id": "sp-2026-05-16",
+      "day": "2026-05-16",
+      "spo2_percentage": { "average": 96.8, "lowest": 94.5 },
+      "breathing_disturbance_index": 1.8
+    },
+    {
+      "id": "sp-2026-05-17",
+      "day": "2026-05-17",
+      "spo2_percentage": { "average": 97.5, "lowest": 95.5 },
+      "breathing_disturbance_index": 0.9
+    }
+  ],
+  "next_token": null
+}
