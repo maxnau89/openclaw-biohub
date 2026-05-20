@@ -82,10 +82,15 @@ v0.x means the schema and CLI may break between minor versions.
 
 ### Tests + CI
 
-- 98 tests (was 15 in v0.1). One new test file per new adapter (Oura,
-  Apple Health, Fitbit, Garmin, OAuth helpers, CLI, migration).
+- 106 tests (was 15 in v0.1). One new test file per new adapter (Oura,
+  Apple Health, Fitbit, Garmin, OAuth helpers, CLI, migration,
+  multi-source seed).
 - All five adapters are validated against fixtures; no test requires
   network, OAuth credentials, or owning the device.
+- The four non-WHOOP adapters have **not** yet been validated against
+  real devices. Contributions of device-validation reports are
+  explicitly invited — see
+  [CONTRIBUTING.md](CONTRIBUTING.md#filing-a-device-validation-report).
 
 ## [0.1.0] — 2026-05-19
 

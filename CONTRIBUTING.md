@@ -148,8 +148,46 @@ version's migration script.
 - TypeScript: follow the existing patterns. The dashboard uses Next.js
   app router + better-sqlite3 + Tailwind.
 
+## Filing a device-validation report
+
+The four non-WHOOP adapters (Oura, Fitbit, Apple Health, Garmin) were
+written from public API docs and tested against captured fixture JSON.
+Nobody with a real device has confirmed they work end-to-end yet —
+that's the single most valuable contribution anyone with one of these
+devices can make.
+
+If you own one and want to help:
+
+1. **Run the adapter.** `pip install -e .[analytics]` from the repo
+   root, then `biohub connect <slug>` and `biohub sync <slug>`.
+2. **Open an issue** at
+   <https://github.com/maxnau89/openclaw-biohub/issues/new> with:
+   - Title: `device-validation: <slug>` (one of `oura`, `fitbit`,
+     `apple-health`, `garmin`)
+   - Label: `device-validation`
+   - **Watch/device model + firmware version** (Fitbit Charge 6,
+     Oura Gen3, Apple Watch Series 10, Garmin Fenix 8, etc.).
+   - **What worked**: `biohub connect` reached completion, `biohub sync`
+     produced N records across these resources, daily_metrics has
+     rows with sensible values for `recovery_score`/`hrv_ms`/`sleep_hours`.
+   - **What didn't**: which resource errored, the error message, and —
+     ideally — the raw provider response with anything personal redacted.
+3. **For schema gaps** (the adapter writes `NULL` where the provider
+   actually returns data), include the column name + the raw value
+   you see in the response. We'll add the column to the schema and
+   wire the parser.
+4. **Do not paste real biometric data** in the issue. Sanitize numbers
+   to round, plausible-but-fake values; we just need the shape of the
+   response, not the contents.
+
+The fixture pattern means once you've validated one resource, the
+fixture you contribute lives in `pipeline/adapters/<slug>/fixtures/`
+and the next person doesn't have to do that part again.
+
 ## Areas where help is especially welcome
 
+- **Device validation** of Oura, Fitbit, Apple Health, and Garmin (see
+  the section above — this is the most valuable contribution right now).
 - **Blood-panel parsers** for additional lab formats. The shipped
   parser targets a specific German lab layout
   (`pipeline/parse_blood_panel.py`).

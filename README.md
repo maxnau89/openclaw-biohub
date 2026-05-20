@@ -20,19 +20,45 @@ IsolationForest anomaly detection, linear-regression recommendations).
 
 ## Available adapters
 
-| Slug | Source | Auth | Stability | Setup |
-|------|--------|------|-----------|-------|
-| `whoop` | WHOOP | OAuth 2.0 + systemd handler | **stable** | `biohub connect whoop` |
-| `oura` | Oura Ring | Personal Access Token | **stable** | `biohub connect oura` |
-| `fitbit` | Fitbit | OAuth 2.0 + localhost callback | **stable** | `biohub connect fitbit` |
-| `apple-health` | Apple Health | File watch (no API) | **stable** | `biohub connect apple-health` |
-| `garmin` | Garmin Connect | username + password (via `garth`) | **EXPERIMENTAL** | `biohub connect garmin` |
+| Slug | Source | Auth | Stability | Real-device validated? |
+|------|--------|------|-----------|------------------------|
+| `whoop` | WHOOP | OAuth 2.0 + systemd handler | **stable** | ✅ yes (the maintainer's own device) |
+| `oura` | Oura Ring | Personal Access Token | stable | ❌ fixtures only |
+| `fitbit` | Fitbit | OAuth 2.0 + localhost callback | stable | ❌ fixtures only |
+| `apple-health` | Apple Health | File watch (no API) | stable | ❌ fixtures only |
+| `garmin` | Garmin Connect | username + password (via `garth`) | **EXPERIMENTAL** | ❌ fixtures only |
 
 All five adapters write to source-specific raw SQLite databases and roll
 up into a source-agnostic `daily_metrics` table that the dashboard and
 agent query. Adding another (Polar, Withings, Whoop+CGM, …) is a matter
 of dropping a new folder into `pipeline/adapters/` and registering it in
 `biohub/registry.py` — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### 🔍 Help wanted: device validators
+
+The four non-WHOOP adapters were built end-to-end from public API docs
+and validated against captured fixture JSON, but **nobody has run them
+against a real device yet**. If you own one of these and would like to
+help shake out the edge cases the docs don't show:
+
+1. `pip install -e .[analytics]` from the repo root.
+2. `biohub connect <slug>` and follow the prompts (each adapter prints
+   the provider's developer-portal URL and the exact steps).
+3. `biohub sync <slug>` — does it pull data? Do the row counts look
+   right? Does `biohub list-adapters` still show your adapter as
+   configured after a restart?
+4. Open an issue at
+   <https://github.com/maxnau89/openclaw-biohub/issues> with the label
+   `device-validation`, the adapter slug, and either *"works for me"*
+   plus your watch model/firmware OR a sanitized API response and a
+   description of what the adapter mis-parsed.
+
+The two outputs I most need from validators: **(a)** "the OAuth/PAT
+flow works on a real account in 2026, end-to-end" and **(b)** any field
+the adapter writes as `NULL` that your provider *does* return — that
+means the schema is missing a column the rollup could use. See
+[CONTRIBUTING.md](CONTRIBUTING.md#filing-a-device-validation-report)
+for the full report template.
 
 ## What's in the box
 
