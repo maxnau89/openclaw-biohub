@@ -1,0 +1,7 @@
+{
+  "hrv": [
+    { "dateTime": "2026-05-15", "value": { "dailyRmssd": 48.2, "deepRmssd": 52.4 } },
+    { "dateTime": "2026-05-16", "value": { "dailyRmssd": 41.8, "deepRmssd": 45.2 } },
+    { "dateTime": "2026-05-17", "value": { "dailyRmssd": 55.7, "deepRmssd": 60.1 } }
+  ]
+}

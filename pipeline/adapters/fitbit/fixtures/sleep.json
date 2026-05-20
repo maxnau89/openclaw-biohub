@@ -1,0 +1,71 @@
+{
+  "sleep": [
+    {
+      "logId": 11000001,
+      "dateOfSleep": "2026-05-15",
+      "isMainSleep": true,
+      "duration": 28800000,
+      "minutesAsleep": 425,
+      "minutesAwake": 35,
+      "minutesToFallAsleep": 8,
+      "minutesAfterWakeup": 12,
+      "timeInBed": 480,
+      "efficiency": 88,
+      "startTime": "2026-05-14T23:30:00.000",
+      "endTime": "2026-05-15T07:30:00.000",
+      "levels": {
+        "summary": {
+          "deep": { "minutes": 95, "count": 5 },
+          "light": { "minutes": 235, "count": 30 },
+          "rem": { "minutes": 95, "count": 8 },
+          "wake": { "minutes": 35, "count": 12 }
+        }
+      }
+    },
+    {
+      "logId": 11000002,
+      "dateOfSleep": "2026-05-16",
+      "isMainSleep": true,
+      "duration": 27000000,
+      "minutesAsleep": 405,
+      "minutesAwake": 45,
+      "minutesToFallAsleep": 10,
+      "minutesAfterWakeup": 0,
+      "timeInBed": 450,
+      "efficiency": 84,
+      "startTime": "2026-05-15T23:45:00.000",
+      "endTime": "2026-05-16T07:15:00.000",
+      "levels": {
+        "summary": {
+          "deep": { "minutes": 88, "count": 4 },
+          "light": { "minutes": 220, "count": 28 },
+          "rem": { "minutes": 97, "count": 7 },
+          "wake": { "minutes": 45, "count": 15 }
+        }
+      }
+    },
+    {
+      "logId": 11000003,
+      "dateOfSleep": "2026-05-17",
+      "isMainSleep": true,
+      "duration": 30000000,
+      "minutesAsleep": 450,
+      "minutesAwake": 30,
+      "minutesToFallAsleep": 5,
+      "minutesAfterWakeup": 15,
+      "timeInBed": 500,
+      "efficiency": 92,
+      "startTime": "2026-05-16T23:00:00.000",
+      "endTime": "2026-05-17T07:30:00.000",
+      "levels": {
+        "summary": {
+          "deep": { "minutes": 105, "count": 6 },
+          "light": { "minutes": 240, "count": 32 },
+          "rem": { "minutes": 105, "count": 9 },
+          "wake": { "minutes": 30, "count": 10 }
+        }
+      }
+    }
+  ],
+  "summary": { "totalMinutesAsleep": 1280, "totalSleepRecords": 3, "totalTimeInBed": 1430 }
+}
