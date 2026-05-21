@@ -8,6 +8,8 @@ parses your blood-panel PDFs, tracks your supplement stack, ships a
 Next.js dashboard, and gives your agent a `SKILL.md` for grounded
 wellness coaching.
 
+![Dashboard overview](docs/screenshots/01-overview.png)
+
 Tracks **recovery score, HRV (rmssd), resting heart rate, SpO₂, skin
 temperature, sleep stages (REM / deep / light), sleep efficiency, daily
 strain, workouts with HR zones, body composition, glucose / CGM,
@@ -17,6 +19,32 @@ recovery and HRV. Includes an ML pattern engine (Pearson correlations,
 IsolationForest anomaly detection, linear-regression recommendations).
 
 > ⚠️ **Not medical advice.** See [DISCLAIMER.md](DISCLAIMER.md).
+
+<details>
+<summary>More screenshots</summary>
+
+### Strain & workouts
+
+![Strain](docs/screenshots/02-strain.png)
+![Workouts](docs/screenshots/05-workouts.png)
+
+### Sleep
+
+![Sleep](docs/screenshots/04-sleep.png)
+
+### Trends
+
+![Trends](docs/screenshots/03-trends.png)
+
+### Supplements
+
+![Supplements](docs/screenshots/07-supplements.png)
+
+(All screenshots above are rendered against `fixtures/seed.py --source all` —
+no real biometric data. Run `OPENCLAW_BIOHUB_HOME=$PWD/.local-data
+python3 fixtures/seed.py --source all` then `npm run dev` to reproduce.)
+
+</details>
 
 ## Available adapters
 
