@@ -7,7 +7,7 @@ v0.x means the schema and CLI may break between minor versions.
 
 ## [Unreleased]
 
-## [0.2.0] — TBD
+## [0.2.0] — 2026-05-21
 
 ### ⚠️ Breaking changes
 
