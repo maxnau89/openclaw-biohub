@@ -1,0 +1,50 @@
+{
+  "data": [
+    {
+      "id": "d1-2026-05-15",
+      "day": "2026-05-15",
+      "score": 82,
+      "timestamp": "2026-05-15T08:00:00+00:00",
+      "contributors": {
+        "deep_sleep": 85,
+        "efficiency": 90,
+        "latency": 88,
+        "rem_sleep": 79,
+        "restfulness": 84,
+        "timing": 86,
+        "total_sleep": 80
+      }
+    },
+    {
+      "id": "d1-2026-05-16",
+      "day": "2026-05-16",
+      "score": 76,
+      "timestamp": "2026-05-16T08:00:00+00:00",
+      "contributors": {
+        "deep_sleep": 78,
+        "efficiency": 88,
+        "latency": 70,
+        "rem_sleep": 73,
+        "restfulness": 80,
+        "timing": 79,
+        "total_sleep": 75
+      }
+    },
+    {
+      "id": "d1-2026-05-17",
+      "day": "2026-05-17",
+      "score": 88,
+      "timestamp": "2026-05-17T08:00:00+00:00",
+      "contributors": {
+        "deep_sleep": 90,
+        "efficiency": 93,
+        "latency": 92,
+        "rem_sleep": 86,
+        "restfulness": 88,
+        "timing": 90,
+        "total_sleep": 87
+      }
+    }
+  ],
+  "next_token": null
+}

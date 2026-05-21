@@ -1,0 +1,15 @@
+{
+  "calendarDate": "2026-05-15",
+  "totalSteps": 9420,
+  "totalDistanceMeters": 7240.0,
+  "activeKilocalories": 720,
+  "bmrKilocalories": 1750,
+  "sedentaryMinutes": 715,
+  "moderateIntensityMinutes": 35,
+  "vigorousIntensityMinutes": 12,
+  "floorsAscended": 8,
+  "restingHeartRate": 54,
+  "minHeartRate": 48,
+  "maxHeartRate": 162,
+  "lastSevenDaysAvgRestingHeartRate": 56
+}

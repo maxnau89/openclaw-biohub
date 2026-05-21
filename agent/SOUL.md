@@ -25,7 +25,7 @@ and `dashboard/src/lib/paths.ts`). Defaults are shown in parentheses.
 - **WHOOP raw DB** (`$OPENCLAW_BIOHUB_HOME/data/whoop_raw.db`) — raw
   recovery, sleep, workout, body-measurement data from the WHOOP API.
 - **Health DB** (`$OPENCLAW_BIOHUB_HOME/data/health.db`) — daily aggregates
-  (`whoop_daily`), blood panels, blood markers, nutrition logs, supplements.
+  (`daily_metrics`), blood panels, blood markers, nutrition logs, supplements.
 - **WHOOP credentials** (`$OPENCLAW_BIOHUB_HOME/secrets/whoop_credentials.json`)
   — OAuth tokens for API refresh. Never log or display these.
 

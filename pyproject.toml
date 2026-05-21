@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openclaw-biohub"
+version = "0.2.0.dev0"
+description = "Self-hosted personal-health hub: WHOOP / Oura / Fitbit / Apple Health, with a wellness-coach OpenClaw skill."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "openclaw-biohub contributors" },
+]
+keywords = [
+    "openclaw", "whoop", "oura", "fitbit", "apple-health",
+    "quantified-self", "biometrics", "health-tracker",
+    "hrv", "sleep-tracking", "self-hosted",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+analytics = [
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+biohub = "biohub.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/maxnau89/openclaw-biohub"
+Issues = "https://github.com/maxnau89/openclaw-biohub/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["biohub*", "pipeline*"]

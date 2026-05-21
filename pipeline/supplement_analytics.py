@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Supplement ↔ Recovery Correlation Analytics
-Reads supplement_log + whoop_daily from health.db and computes
+Reads supplement_log + daily_metrics from health.db and computes
 partial correlations between supplement intake and recovery/HRV,
 controlling for sleep performance and day strain (same approach WHOOP uses
 in their multivariate journal-based analysis).
@@ -107,7 +107,7 @@ def load_data():
     cur = conn.cursor()
 
     tables = {row['name'] for row in cur.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    if 'supplement_log' not in tables or 'supplements' not in tables or 'whoop_daily' not in tables:
+    if 'supplement_log' not in tables or 'supplements' not in tables or 'daily_metrics' not in tables:
         conn.close()
         return {}, {}
 
@@ -115,7 +115,7 @@ def load_data():
     whoop = {}
     for row in cur.execute(
         'SELECT date, recovery_score, hrv_ms, sleep_performance, day_strain '
-        'FROM whoop_daily WHERE recovery_score IS NOT NULL'
+        'FROM daily_metrics WHERE recovery_score IS NOT NULL'
     ):
         whoop[row['date']] = {
             'recovery':    row['recovery_score'],
