@@ -1,4 +1,4 @@
-"""Round-trip test for the v0.1 → v0.2 migration script."""
+"""Round-trip tests for the schema migration scripts."""
 import importlib.util
 import sqlite3
 import sys
@@ -7,10 +7,19 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATE_SCRIPT = REPO_ROOT / "db" / "migrate_v0.1_to_v0.2.py"
+MIGRATE_V23_SCRIPT = REPO_ROOT / "db" / "migrate_v0.2_to_v0.3.py"
 
 
 def _load_migrate_module():
     spec = importlib.util.spec_from_file_location("migrate_v0_1_to_v0_2", MIGRATE_SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _load_migrate_v23_module():
+    spec = importlib.util.spec_from_file_location("migrate_v0_2_to_v0_3", MIGRATE_V23_SCRIPT)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -104,3 +113,93 @@ def test_migration_on_fresh_db_is_noop(tmp_path):
 def test_migration_on_missing_db(tmp_path):
     mod = _load_migrate_module()
     assert mod.migrate(tmp_path / "does-not-exist.db") == 0
+
+
+# ─── v0.2 → v0.3 migration ────────────────────────────────────────────────
+
+
+def _make_v02_db(tmp_path: Path) -> Path:
+    """Build a minimal post-v0.2 health.db (daily_metrics exists, no
+    body_composition / tracking_phases yet)."""
+    db = tmp_path / "health.db"
+    conn = sqlite3.connect(db)
+    conn.executescript("""
+        CREATE TABLE daily_metrics (
+            source TEXT NOT NULL,
+            date TEXT NOT NULL,
+            recovery_score INTEGER,
+            PRIMARY KEY (source, date)
+        );
+        INSERT INTO daily_metrics (source, date, recovery_score)
+            VALUES ('whoop', '2026-04-01', 72), ('whoop', '2026-04-02', 65);
+    """)
+    conn.commit()
+    conn.close()
+    return db
+
+
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone() is not None
+
+
+def test_v23_migration_creates_both_new_tables(tmp_path):
+    mod = _load_migrate_v23_module()
+    db = _make_v02_db(tmp_path)
+    result = mod.migrate(db)
+    assert result == {"body_composition": True, "tracking_phases": True}
+
+    with sqlite3.connect(db) as conn:
+        assert _table_exists(conn, "body_composition")
+        assert _table_exists(conn, "tracking_phases")
+        # Existing daily_metrics rows preserved
+        n = conn.execute("SELECT COUNT(*) FROM daily_metrics").fetchone()[0]
+        assert n == 2
+
+
+def test_v23_migration_is_idempotent(tmp_path):
+    mod = _load_migrate_v23_module()
+    db = _make_v02_db(tmp_path)
+    first = mod.migrate(db)
+    assert first == {"body_composition": True, "tracking_phases": True}
+    second = mod.migrate(db)
+    assert second == {"body_composition": False, "tracking_phases": False}
+
+
+def test_v23_migration_creates_indexes(tmp_path):
+    mod = _load_migrate_v23_module()
+    db = _make_v02_db(tmp_path)
+    mod.migrate(db)
+    with sqlite3.connect(db) as conn:
+        indexes = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index'"
+        )}
+    assert "idx_body_composition_date" in indexes
+    assert "idx_tracking_phases_dates" in indexes
+
+
+def test_v23_migration_on_missing_db(tmp_path):
+    mod = _load_migrate_v23_module()
+    result = mod.migrate(tmp_path / "does-not-exist.db")
+    assert result == {"body_composition": False, "tracking_phases": False}
+
+
+def test_v23_migration_skips_only_present_table(tmp_path):
+    """If one of the two target tables already exists (partial migration),
+    we should only create the missing one and leave the existing one alone."""
+    mod = _load_migrate_v23_module()
+    db = _make_v02_db(tmp_path)
+    # Pre-create body_composition manually (partial state)
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE body_composition (id INTEGER PRIMARY KEY, custom_col TEXT)")
+        conn.execute("INSERT INTO body_composition (custom_col) VALUES ('preserved')")
+        conn.commit()
+
+    result = mod.migrate(db)
+    assert result == {"body_composition": False, "tracking_phases": True}
+
+    # Custom data survived (migration didn't drop/recreate)
+    with sqlite3.connect(db) as conn:
+        rows = conn.execute("SELECT custom_col FROM body_composition").fetchall()
+    assert rows == [("preserved",)]

@@ -114,6 +114,46 @@ CREATE TABLE supplement_log (
 CREATE INDEX idx_supplement_log_supplement_id ON supplement_log(supplement_id);
 CREATE INDEX idx_supplement_log_taken_at ON supplement_log(taken_at);
 
+-- body_composition: one row per date. `method` records how the
+-- numbers were derived (jackson-pollock-7 / jackson-pollock-3 / scale /
+-- dexa / apple-health / manual). Skinfold sites are optional — scale
+-- and Apple Health rows only fill weight_kg.
+CREATE TABLE body_composition (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL UNIQUE,
+    method TEXT,
+    body_fat_pct REAL,
+    weight_kg REAL,
+    lean_mass_kg REAL,
+    fat_mass_kg REAL,
+    chest_mm REAL,
+    abdominal_mm REAL,
+    thigh_mm REAL,
+    tricep_mm REAL,
+    subscapular_mm REAL,
+    suprailiac_mm REAL,
+    midaxillary_mm REAL,
+    notes TEXT,
+    created_at INTEGER DEFAULT (strftime('%s','now') * 1000)
+);
+CREATE INDEX idx_body_composition_date ON body_composition(date);
+
+-- tracking_phases: user-defined windows the user wants overlaid on
+-- their body-comp / metrics timeline. Categories are open-ended
+-- ('training', 'diet', 'supplement', 'medication', 'lifestyle', or
+-- anything else). end_date IS NULL means the phase is currently active.
+CREATE TABLE tracking_phases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT,
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    color TEXT,
+    notes TEXT,
+    created_at INTEGER DEFAULT (strftime('%s','now') * 1000)
+);
+CREATE INDEX idx_tracking_phases_dates ON tracking_phases(start_date, end_date);
+
 -- ============================================================
 -- DB 2: whoop_raw.db  (was: whoop_analytics.db, all WHOOP API data)
 -- ============================================================
