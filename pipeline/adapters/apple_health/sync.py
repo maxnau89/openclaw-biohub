@@ -54,6 +54,13 @@ _HK_TO_SLUG = {
     "HKQuantityTypeIdentifierBodyTemperature": "body_temperature",
     "HKQuantityTypeIdentifierAppleSleepingWristTemperature": "wrist_temperature",
     "HKCategoryTypeIdentifierSleepAnalysis": "sleep_analysis",
+    # v0.3: nutrition (consumed) — rolls up into health.db nutrition_logs.
+    "HKQuantityTypeIdentifierDietaryEnergyConsumed": "dietary_energy",
+    "HKQuantityTypeIdentifierDietaryProtein":       "protein",
+    "HKQuantityTypeIdentifierDietaryCarbohydrates": "carbohydrates",
+    "HKQuantityTypeIdentifierDietaryFatTotal":      "total_fat",
+    "HKQuantityTypeIdentifierDietaryFiber":         "dietary_fiber",
+    "HKQuantityTypeIdentifierDietaryWater":         "dietary_water",
 }
 
 
@@ -295,6 +302,74 @@ def _rollup(raw_db: Path, health_db: Path) -> int:
                 calories, steps, active_min,
             ))
             count += 1
+
+        # ─── v0.3: weight → body_composition (filtered upsert) ───────────────
+        # Don't clobber rows from caliper / DEXA / manual entries — those win
+        # over Apple-Health scale readings. Same-day apple-health rows update.
+        last_weight = dst.execute(
+            "SELECT MAX(date) FROM body_composition WHERE method = 'apple-health'"
+        ).fetchone()[0] or "2000-01-01"
+        weight_rows = src.execute("""
+            SELECT substr(date, 1, 10) AS day,
+                   AVG(value) AS avg_kg
+            FROM metric_samples
+            WHERE metric_name = 'body_mass'
+              AND substr(date, 1, 10) > ?
+            GROUP BY day
+        """, (last_weight,)).fetchall()
+        for r in weight_rows:
+            dst.execute("""
+                INSERT INTO body_composition (date, method, weight_kg)
+                VALUES (?, 'apple-health', ROUND(?, 2))
+                ON CONFLICT(date) DO UPDATE SET
+                    weight_kg = excluded.weight_kg,
+                    method = excluded.method
+                WHERE body_composition.method IS NULL
+                   OR body_composition.method = 'apple-health'
+            """, (r["day"], r["avg_kg"]))
+
+        # ─── v0.3: macros → nutrition_logs (one day_total row per date) ──────
+        # Assumes dietary_energy is in kcal (Apple Health's most common unit).
+        # If the export uses kJ, divide by 4.184 here — left as a v0.4 TODO.
+        last_nutrition = dst.execute(
+            "SELECT MAX(log_date) FROM nutrition_logs"
+        ).fetchone()[0] or "2000-01-01"
+        macro_rows = src.execute("""
+            SELECT substr(date, 1, 10) AS day,
+                   metric_name,
+                   SUM(value) AS total
+            FROM metric_samples
+            WHERE metric_name IN (
+                'dietary_energy', 'protein', 'carbohydrates',
+                'total_fat', 'dietary_fiber', 'dietary_water'
+            )
+              AND substr(date, 1, 10) > ?
+            GROUP BY day, metric_name
+        """, (last_nutrition,)).fetchall()
+        nutrition_per_day: dict[str, dict] = defaultdict(dict)
+        for r in macro_rows:
+            nutrition_per_day[r["day"]][r["metric_name"]] = r["total"]
+        for day, m in nutrition_per_day.items():
+            # nutrition_logs has no UNIQUE constraint on (log_date, meal_type);
+            # delete-then-insert to keep one day_total row per date.
+            dst.execute(
+                "DELETE FROM nutrition_logs WHERE log_date = ? AND meal_type = 'day_total'",
+                (day,),
+            )
+            water_ml = m.get("dietary_water")
+            dst.execute("""
+                INSERT INTO nutrition_logs
+                    (log_date, meal_type, calories, protein_g, carbs_g, fat_g, fiber_g, water_ml)
+                VALUES (?, 'day_total', ?, ?, ?, ?, ?, ?)
+            """, (
+                day,
+                int(m["dietary_energy"]) if "dietary_energy" in m else None,
+                m.get("protein"),
+                m.get("carbohydrates"),
+                m.get("total_fat"),
+                m.get("dietary_fiber"),
+                int(water_ml * 1000) if water_ml is not None else None,  # litres → ml
+            ))
 
         dst.commit()
         return count
