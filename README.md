@@ -23,6 +23,15 @@ IsolationForest anomaly detection, linear-regression recommendations).
 <details>
 <summary>More screenshots</summary>
 
+### Supplement ↔ Recovery correlations (the analytics headline)
+
+Lag-aware partial Pearson correlations between each supplement in your
+stack and your recovery score, with 95% CI, p-value, and a delta in
+recovery points on intake days vs. non-intake days. Adjusted for sleep
+and strain when there's enough data.
+
+![Supplement correlations](docs/screenshots/07b-supplements-correlations.png)
+
 ### Strain & workouts
 
 ![Strain](docs/screenshots/02-strain.png)
@@ -36,7 +45,14 @@ IsolationForest anomaly detection, linear-regression recommendations).
 
 ![Trends](docs/screenshots/03-trends.png)
 
-### Supplements
+### Blood work
+
+13 biomarkers with reference-range flagging, category filters, and a
+two-point trend chart per marker.
+
+![Blood work](docs/screenshots/06-blood.png)
+
+### Supplements log
 
 ![Supplements](docs/screenshots/07-supplements.png)
 
