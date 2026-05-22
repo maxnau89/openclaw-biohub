@@ -161,13 +161,20 @@ credential capture interactively.
 - **Blood work** — biomarker time series, reference-range flagging.
 - **Supplements** — intake log + Pearson correlation against recovery / HRV
   (lag-aware, controlling for sleep and strain).
+- **Body composition** *(v0.3)* — caliper history (Jackson-Pollock 7-site
+  + Siri), weight + lean/fat trends, intake (calories + macros) and a
+  30-day forward simulator (ΔWeight/day ≈ (kcal − TDEE) / 7700). User-
+  defined **tracking phases** — bulks, cuts, supplement courses,
+  training blocks, medication, sober months — overlay onto the timeline
+  as colored chips. Apple Health weights flow in automatically and
+  defer to manual caliper entries.
 
 The optional `health-insights` endpoint runs `whoop_pattern_engine.py`
 which does pairwise Pearson correlations, IsolationForest anomaly
 detection, and linear-regression recommendations.
 
 > Note: the pattern engine is still WHOOP-shaped (queries `whoop_raw.db`).
-> Making it source-agnostic is a v0.3 item — see [CHANGELOG.md](CHANGELOG.md).
+> Making it source-agnostic is a v0.4 item — see [CHANGELOG.md](CHANGELOG.md).
 
 ## Project layout
 
@@ -226,9 +233,10 @@ The dashboard and agent are independent — you can use either alone.
 
 ## Status
 
-`v0.2.0-dev` — five adapters wired, the CLI is in. The schema (now
-`daily_metrics` with a `source` column) is expected to stay stable
-from here.
+`v0.3.0-dev` — five adapters wired, body composition + tracking phases
+in. The schema (`daily_metrics` keyed by `(source, date)` plus the new
+`body_composition` and `tracking_phases` tables) is expected to stay
+stable from here.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed since v0.1.
 

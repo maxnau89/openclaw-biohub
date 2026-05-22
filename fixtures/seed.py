@@ -402,6 +402,86 @@ def generate_oura(conn: sqlite3.Connection, hconn: sqlite3.Connection) -> int:
     return rolled
 
 
+def generate_body_composition_and_phases(conn: sqlite3.Connection) -> tuple[int, int]:
+    """Populate `body_composition` (8 caliper entries) and `tracking_phases`
+    (2 generic seed phases) in health.db. Returns (#caliper, #phases).
+
+    The caliper entries trace a recomp arc: ~90 days of slow drift, then a
+    one-month cut (BF drops ~5 pts), then a one-month lean bulk (small weight
+    regain, BF holds). Two `tracking_phases` overlay onto that arc so the
+    UI's phase chips and the API's `active_phases` field have something to
+    show out of the box.
+    """
+    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+
+    # (days_ago, weight_kg, body_fat_pct, sum_of_7_target_mm)
+    #
+    # Skinfold values are deterministic per row (split the sum across sites
+    # in roughly anatomical proportions). They're consistent with the
+    # body_fat_pct via Jackson-Pollock, but we store the BF directly rather
+    # than computing it on the fly — seeding shouldn't depend on biohub.body_comp.
+    caliper_plan = [
+        ( 90, 84.0, 18.0, 132),   # pre-cut, drifting
+        ( 78, 83.5, 17.5, 128),
+        ( 66, 83.0, 17.2, 126),
+        ( 54, 82.0, 15.5, 115),   # cut: -60 → -30, mid-cut
+        ( 42, 80.5, 13.5, 100),   # cut, deeper
+        ( 30, 80.0, 12.0,  90),   # cut end / bulk start
+        ( 18, 81.0, 12.5,  94),   # lean bulk: -30 → ongoing
+        (  6, 82.0, 13.0,  98),
+    ]
+
+    # Anatomical proportions (must sum to 1.0). Tuned so that 'abdominal' and
+    # 'thigh' dominate, which matches typical adult males in the literature.
+    site_props = {
+        "chest":       0.07,
+        "abdominal":   0.20,
+        "thigh":       0.18,
+        "tricep":      0.10,
+        "subscapular": 0.16,
+        "suprailiac":  0.15,
+        "midaxillary": 0.14,
+    }
+    assert abs(sum(site_props.values()) - 1.0) < 1e-9
+
+    caliper_rows = 0
+    for days_ago, weight, bf, sum_mm in caliper_plan:
+        d = (today - timedelta(days=days_ago)).isoformat()
+        fat_mass = round(weight * bf / 100.0, 2)
+        lean_mass = round(weight - fat_mass, 2)
+        sites = {k: round(sum_mm * p, 1) for k, p in site_props.items()}
+        conn.execute(
+            "INSERT INTO body_composition "
+            "(date, method, body_fat_pct, weight_kg, lean_mass_kg, fat_mass_kg, "
+            " chest_mm, abdominal_mm, thigh_mm, tricep_mm, "
+            " subscapular_mm, suprailiac_mm, midaxillary_mm, notes) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (d, "jackson-pollock-7", bf, weight, lean_mass, fat_mass,
+             sites["chest"], sites["abdominal"], sites["thigh"], sites["tricep"],
+             sites["subscapular"], sites["suprailiac"], sites["midaxillary"],
+             "synthetic"),
+        )
+        caliper_rows += 1
+
+    # Two generic phases that overlay the caliper arc.
+    phases = [
+        ("Sample Cut",  "diet",     today - timedelta(days=60), today - timedelta(days=30),
+         "#fbbf24", "Synthetic — 30-day deficit window"),
+        ("Sample Bulk", "training", today - timedelta(days=30), None,
+         "#34d399", "Synthetic — ongoing lean bulk"),
+    ]
+    for name, cat, start, end, color, notes in phases:
+        conn.execute(
+            "INSERT INTO tracking_phases "
+            "(name, category, start_date, end_date, color, notes) "
+            "VALUES (?,?,?,?,?,?)",
+            (name, cat, start.isoformat(),
+             end.isoformat() if end else None, color, notes),
+        )
+
+    return caliper_rows, len(phases)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="openclaw-biohub fixture seeder")
     parser.add_argument(
@@ -458,12 +538,16 @@ def main() -> int:
                 # and rollup is an empty list.
                 generate_health(hconn, [])
 
+        # body_composition + tracking_phases are source-agnostic — always seed
+        n_caliper, n_phases = generate_body_composition_and_phases(hconn)
+
         hconn.commit()
     finally:
         hconn.close()
 
     print(f"Wrote {DAYS} days of synthetic data ({', '.join(sorted(sources))}):")
     print(f"  {health_db_path}")
+    print(f"    + {n_caliper} body_composition rows, {n_phases} tracking_phases")
     if "whoop" in sources:
         print(f"  {whoop_db_path}")
     if "oura" in sources:

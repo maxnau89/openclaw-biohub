@@ -19,6 +19,7 @@ import { RecoveryDistribution } from '@/components/health/RecoveryDistribution';
 import { MonthlyDelta } from '@/components/health/MonthlyDelta';
 import { WorkoutHeatmap } from '@/components/health/WorkoutHeatmap';
 import { SleepNeedBar } from '@/components/health/SleepNeedBar';
+import { BodyCompositionTab } from '@/components/health/BodyCompTab';
 import { SleepConsistencyHeatmap } from '@/components/health/SleepConsistencyHeatmap';
 import { recoveryColor, strainColor, HR_ZONE_COLORS, HR_ZONE_LABELS } from '@/components/health/colors';
 
@@ -28,6 +29,7 @@ const tabs = [
   { id: 'trends', label: 'Trends' },
   { id: 'sleep', label: 'Sleep' },
   { id: 'workouts', label: 'Workouts' },
+  { id: 'body-comp', label: 'Body Comp' },
   { id: 'blood', label: 'Blood Work' },
   { id: 'supplements', label: 'Supplements' },
 ];
@@ -2045,6 +2047,11 @@ function HealthContent() {
       {/* ───────── WORKOUTS ───────── */}
       {activeTab === 'workouts' && (
         <WorkoutsTab data={data} />
+      )}
+
+      {/* ───────── BODY COMPOSITION ───────── */}
+      {activeTab === 'body-comp' && (
+        <BodyCompositionTab />
       )}
 
       {/* ───────── BLOOD WORK ───────── */}

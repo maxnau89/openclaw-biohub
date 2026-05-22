@@ -17,9 +17,10 @@ SQLite databases under `$OPENCLAW_BIOHUB_HOME/data/`:
 
 - **`health.db`** — the **source-agnostic** rollup. `daily_metrics`
   has one row per `(source, date)`; `blood_panels` + `blood_markers`,
-  `supplements` + `supplement_log`, `nutrition_logs` are
-  source-independent. **Prefer queries on `health.db`** — they work
-  regardless of which wearable the user has.
+  `supplements` + `supplement_log`, `nutrition_logs`,
+  `body_composition`, and `tracking_phases` are source-independent.
+  **Prefer queries on `health.db`** — they work regardless of which
+  wearable the user has.
 - **`whoop_raw.db`** — raw WHOOP API payloads (`recovery_data`,
   `sleep_data`, `workout_data`, `cycles_data`, `user_profile`,
   `body_measurements`, `glucose_data`, `cgm_glucose`).
@@ -47,6 +48,10 @@ Invoke this skill when the user asks anything in the cluster of:
 - "What does my blood work say about X?"
 - "Is [supplement] working?" / "Did taking X change my recovery?"
 - "How am I doing in general?" / "Give me a status check."
+- "How is my cut / bulk going?" / "Am I losing fat?" / "Did the
+  creatine cycle move anything?" / Any reference to **body
+  composition**, **caliper**, **body fat**, or active **tracking
+  phases**.
 - Any reference to specific metrics: HRV, RHR, recovery score, sleep
   performance, strain, blood markers, biomarkers, supplements,
   nutrition, glucose, CGM, body composition.
@@ -81,6 +86,14 @@ sqlite3 "$HEALTH_DB" \
 sqlite3 "$HEALTH_DB" \
   "SELECT name, active_ingredient, dose_mg, dose_unit, default_lag_hours
    FROM supplements"
+
+# Latest body-composition entry + currently-active tracking phases
+sqlite3 "$HEALTH_DB" \
+  "SELECT date, method, weight_kg, body_fat_pct, lean_mass_kg, fat_mass_kg
+   FROM body_composition ORDER BY date DESC LIMIT 1"
+sqlite3 "$HEALTH_DB" \
+  "SELECT name, category, start_date, color FROM tracking_phases
+   WHERE end_date IS NULL ORDER BY start_date DESC"
 ```
 
 ### Deeper analytics
@@ -95,7 +108,7 @@ LLM consumption:
 - `whoop_pattern_engine.py` — full insight bundle:
   pairwise correlations (sleep ↔ HRV ↔ recovery ↔ strain), IsolationForest
   anomaly detection, linear-regression recommendations. *(WHOOP-specific
-  today; a v0.3 refactor will make it source-agnostic.)*
+  today; a v0.4 refactor will make it source-agnostic.)*
 
 Invoke any of these with `python3 pipeline/<name>.py` and parse the JSON.
 
@@ -110,6 +123,30 @@ biohub connect <slug>
 …where `<slug>` is one of `whoop`, `oura`, `fitbit`, `apple-health`,
 or `garmin`. `biohub list-adapters` shows all options with their
 stability tier (Garmin is `EXPERIMENTAL`).
+
+### Logging body-composition entries and phases
+
+If the user just measured themselves ("I took my calipers", "I weighed
+in at 82 kg, BF around 14%") or wants to mark a phase ("I'm starting a
+cut today" / "the creatine cycle is over"), point them at the CLI:
+
+```
+biohub log-measurement                       # interactive caliper entry
+biohub log-phase start <category> "<name>"   # opens a phase
+biohub log-phase end "<name>"                # closes the most-recent match
+biohub log-phase list                        # see all phases
+```
+
+Categories are open-ended free text; the CLI ships default chip colors
+for `training`, `diet`, `supplement`, `medication`, and `lifestyle`.
+When commenting on a body-comp datapoint, surface which `tracking_phases`
+were active on that date — the API's `active_phases` field already
+joins this for the dashboard, but for shell queries:
+
+```sql
+SELECT name, category, color FROM tracking_phases
+WHERE start_date <= :date AND (end_date IS NULL OR end_date >= :date)
+```
 
 ## Memory
 

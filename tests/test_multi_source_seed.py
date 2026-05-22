@@ -123,6 +123,67 @@ def test_source_all_dashboard_query_returns_multiple_sources_per_date(fresh_home
     assert row[1] == 2
 
 
+# ─── body_composition + tracking_phases (source-agnostic) ───────────────────
+
+
+def test_default_source_seeds_body_composition_and_phases(fresh_home):
+    """body_composition + tracking_phases are seeded regardless of source."""
+    _run_seed(fresh_home)
+    with sqlite3.connect(fresh_home / "data" / "health.db") as conn:
+        n_caliper = conn.execute("SELECT COUNT(*) FROM body_composition").fetchone()[0]
+        n_phases = conn.execute("SELECT COUNT(*) FROM tracking_phases").fetchone()[0]
+    assert n_caliper == 8
+    assert n_phases == 2
+
+
+def test_seeded_body_composition_has_caliper_method_and_full_skinfolds(fresh_home):
+    _run_seed(fresh_home)
+    with sqlite3.connect(fresh_home / "data" / "health.db") as conn:
+        row = conn.execute("""
+            SELECT method, weight_kg, body_fat_pct, lean_mass_kg, fat_mass_kg,
+                   chest_mm, abdominal_mm, thigh_mm, tricep_mm,
+                   subscapular_mm, suprailiac_mm, midaxillary_mm
+            FROM body_composition
+            ORDER BY date DESC LIMIT 1
+        """).fetchone()
+    assert row[0] == "jackson-pollock-7"
+    # Every numeric field populated
+    for i, v in enumerate(row[1:]):
+        assert v is not None and v > 0, f"column index {i} is empty: {v}"
+
+
+def test_seeded_phases_include_one_open_and_one_closed(fresh_home):
+    """The Bulk phase stays open (end_date NULL); the Cut phase is closed."""
+    _run_seed(fresh_home)
+    with sqlite3.connect(fresh_home / "data" / "health.db") as conn:
+        rows = conn.execute(
+            "SELECT name, category, end_date IS NULL AS is_open, color "
+            "FROM tracking_phases ORDER BY start_date"
+        ).fetchall()
+    names = [r[0] for r in rows]
+    assert names == ["Sample Cut", "Sample Bulk"]
+    # Cut closed, Bulk open
+    assert rows[0][2] == 0
+    assert rows[1][2] == 1
+    # Category-default colors
+    assert rows[0][1] == "diet" and rows[0][3] == "#fbbf24"
+    assert rows[1][1] == "training" and rows[1][3] == "#34d399"
+
+
+def test_seeded_caliper_arc_shows_fat_loss_then_recovery(fresh_home):
+    """Caliper arc: BF drops through the Cut window, then rises on the Bulk."""
+    _run_seed(fresh_home)
+    with sqlite3.connect(fresh_home / "data" / "health.db") as conn:
+        bf_series = [r[0] for r in conn.execute(
+            "SELECT body_fat_pct FROM body_composition ORDER BY date"
+        )]
+    assert len(bf_series) == 8
+    # Highest BF early; lowest BF mid-late; final BF is in between
+    assert bf_series[0] == max(bf_series)
+    assert bf_series[5] == min(bf_series)
+    assert bf_series[-1] > min(bf_series)
+
+
 def test_source_all_oura_and_whoop_have_distinct_averages(fresh_home):
     """Sanity check that the two sources aren't accidentally identical —
     they're generated with different RNG offsets so a real visualization
