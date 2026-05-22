@@ -529,7 +529,7 @@ export function BodyCompositionTab() {
                     <td className="text-right py-1.5 px-1 text-white/70">{c.weight_kg?.toFixed(1) ?? '—'}</td>
                     <td className="text-right py-1.5 px-1 text-emerald-400">{c.lean_mass_kg?.toFixed(1) ?? '—'}</td>
                     <td className="text-right py-1.5 px-1 text-white/60">{c.fat_mass_kg?.toFixed(1) ?? '—'}</td>
-                    <td className="text-right py-1.5 px-1 text-white/40">{sumMM !== null ? `${sumMM} mm` : '—'}</td>
+                    <td className="text-right py-1.5 px-1 text-white/40">{sumMM !== null ? `${sumMM.toFixed(1)} mm` : '—'}</td>
                   </tr>
                 );
               })}
