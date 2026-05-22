@@ -18,6 +18,14 @@ configured (run `biohub list-adapters` to see):
     `day_strain`, `calories_burned`, `steps`, `active_minutes`.
   - `blood_panels`, `blood_markers`, `nutrition_logs`, `supplements`,
     `supplement_log`.
+  - `body_composition` — one row per `date`. Columns: `method`
+    (`jackson-pollock-7` | `scale` | `dexa` | `apple-health` | `manual`),
+    `body_fat_pct`, `weight_kg`, `lean_mass_kg`, `fat_mass_kg`, the 7
+    skinfold sites in mm.
+  - `tracking_phases` — user-defined overlays. Columns: `name`,
+    `category` (open-ended; canonical values: `training`, `diet`,
+    `supplement`, `medication`, `lifestyle`), `start_date`,
+    `end_date` (NULL = currently active), `color` (hex).
 - **`whoop_raw.db`** — WHOOP API payloads.
 - **`oura_raw.db`** — Oura Ring API payloads.
 - **`fitbit_raw.db`** — Fitbit Web API payloads.
@@ -52,6 +60,18 @@ sqlite3 "$HEALTH_DB" \
    FROM blood_markers m JOIN blood_panels p ON m.panel_id = p.id
    WHERE p.panel_date = (SELECT MAX(panel_date) FROM blood_panels)
    ORDER BY m.marker_name"
+
+# Most recent body-comp datapoint + every phase that was active on
+# that date — surface phase names when commenting on the numbers.
+sqlite3 "$HEALTH_DB" \
+  "SELECT b.date, b.method, b.weight_kg, b.body_fat_pct, b.lean_mass_kg,
+          b.fat_mass_kg,
+          GROUP_CONCAT(p.name, ', ') AS active_phases
+   FROM body_composition b
+   LEFT JOIN tracking_phases p
+     ON p.start_date <= b.date
+    AND (p.end_date IS NULL OR p.end_date >= b.date)
+   GROUP BY b.id ORDER BY b.date DESC LIMIT 1"
 ```
 
 For richer analytics, prefer the Python helpers under `pipeline/`

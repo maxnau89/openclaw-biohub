@@ -7,6 +7,82 @@ v0.x means the schema and CLI may break between minor versions.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-22
+
+### ⚠️ Breaking changes
+
+- **New tables `body_composition` and `tracking_phases` in `health.db`.**
+  v0.2 users must run `python3 db/migrate_v0.2_to_v0.3.py` once before
+  using the Body Comp tab or `biohub log-measurement` / `log-phase`.
+  The script is idempotent and only adds the two missing tables — no
+  existing rows are touched.
+
+### Added
+
+- **Body composition tracking** (`body_composition` table, one row per
+  date). Records the method (`jackson-pollock-7`, `jackson-pollock-3`,
+  `scale`, `dexa`, `apple-health`, `manual`), weight, body-fat %, lean
+  + fat mass, and the 7 Jackson-Pollock skinfold sites in mm. Caliper
+  entries take precedence over Apple Health weights via a filtered
+  upsert (`ON CONFLICT … WHERE method IS NULL OR method = 'apple-health'`).
+- **`tracking_phases` table** — user-defined windows (bulks, cuts,
+  supplement courses, training blocks, medication, sober months, …) to
+  overlay on the body-comp timeline. Categories are open-ended; the
+  CLI ships sensible default chip colors for `training`, `diet`,
+  `supplement`, `medication`, and `lifestyle`. `end_date IS NULL` means
+  the phase is currently active.
+- **Dashboard `/health/body-composition`** standalone route + a new
+  **Body Comp** tab under `/health?tab=body-comp`. Renders caliper
+  history, weight + lean/fat trends, intake (calories + macros), and
+  per-phase summaries with colored chips. A 30-day forward simulator
+  uses the textbook ΔWeight/day ≈ (kcal − TDEE) / 7700 model.
+- **`/api/body-composition`** route reads only from `health.db`.
+  Returns `{ entries, tracking_phases, weights, intake, phases,
+  insights, computed_at }`; each caliper row carries an
+  `active_phases: string[]` of phase names whose window contains that
+  date.
+- **Apple Health adapter extension** (`pipeline/adapters/apple_health/sync.py`):
+  - `HKQuantityTypeIdentifierBodyMass` samples (latest per day) →
+    `body_composition(date, method='apple-health', weight_kg)`. The
+    upsert is caliper-preserving.
+  - Dietary energy + protein + carbs + fat (and water + fiber) →
+    `nutrition_logs`, one row per day with `meal_type='day_total'`.
+  - Three independent rollup cursors (`last_metrics`, `last_weight`,
+    `last_nutrition`) so each stream advances on its own.
+- **CLI: `biohub log-measurement`** — flag-driven or interactive entry
+  of a body-composition snapshot. Computes body-fat % from skinfolds
+  via JP-7 + Siri when only skinfolds + sex + age are given.
+- **CLI: `biohub log-phase {start, end, list}`** — open, close, and
+  inspect tracking phases. `start` defaults to today; `end` closes the
+  most-recent open phase by name match; `list --open-only` filters.
+- **`biohub/body_comp.py`** — extracted body-comp logic
+  (`compute_bf_jp7`, `derive_mass`, `log_measurement`, `start_phase`,
+  `end_phase`, `list_phases`, `default_color`). Importable from
+  `biohub` so downstream tools can reuse the math.
+- **Seed fixtures**: 8 caliper entries tracing a 90-day recomp arc +
+  2 generic `tracking_phases` (`Sample Cut` closed, `Sample Bulk`
+  ongoing). Source-agnostic — runs for every `fixtures/seed.py --source`
+  mode.
+- **Migration script** `db/migrate_v0.2_to_v0.3.py` (see "Breaking
+  changes" above).
+
+### Changed
+
+- `db/schema.sql` adds `body_composition` + `tracking_phases` under
+  `-- DB 1: health.db`, with `idx_body_composition_date` and
+  `idx_tracking_phases_dates`.
+- README + CONTRIBUTING gained a "Body composition" section covering
+  the recomp arc, phase categories, and the JP-7 entry path.
+- `agent/SKILL.md` + `agent/AGENTS.md` list body-comp + tracking-phases
+  in the data inventory and explain when to surface phase chips.
+
+### Tests + CI
+
+- 129 tests (was 115 at the end of v0.2). New coverage: schema +
+  migration round-trip, Apple Health weight + macro rollup paths,
+  JP-7 + Siri math, log-measurement / log-phase dry-runs +
+  persistence, seeded caliper arc, seed phase open/closed shape.
+
 ## [0.2.0] — 2026-05-21
 
 ### ⚠️ Breaking changes
@@ -105,6 +181,7 @@ wellness-coach persona pack, systemd unit + templated secrets file,
 synthetic fixtures (`fixtures/seed.py`), 15 pytest tests, GitHub
 Actions CI.
 
-[Unreleased]: https://github.com/maxnau89/openclaw-biohub/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/maxnau89/openclaw-biohub/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/maxnau89/openclaw-biohub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/maxnau89/openclaw-biohub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.1.0

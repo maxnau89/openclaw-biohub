@@ -198,11 +198,37 @@ and the next person doesn't have to do that part again.
 - **More adapters**: Polar, Withings, Strava, Google Fit, Dexcom CGM,
   FreeStyle Libre. The interface is ready.
 - **Cross-source pattern engine** — `whoop_pattern_engine.py` is
-  WHOOP-schema-bound. A v0.3 refactor should query `daily_metrics`
+  WHOOP-schema-bound. A v0.4 refactor should query `daily_metrics`
   source-agnostically so anomaly detection works for Oura users too.
 - **Documentation** — especially deployment recipes (Docker compose,
   systemd templates for non-Debian distros, fly.io, etc.).
 - **Internationalization** — the dashboard is currently English-only.
+
+## Tracking-phase categories
+
+`tracking_phases.category` is an open-ended free-text column — users
+can put whatever string makes sense to them ("PRP injection",
+"vacation", "shift work"). The CLI ships sensible default chip
+colors for five canonical categories, and the dashboard falls back to
+slate for anything else. The default palette:
+
+| Category     | Color    | Hex       | Typical phases |
+|--------------|----------|-----------|----------------|
+| `training`   | emerald  | `#34d399` | strength block, mesocycle, deload |
+| `diet`       | amber    | `#fbbf24` | cut, bulk, recomp, fast, refeed |
+| `supplement` | violet   | `#a78bfa` | creatine loading, NAC trial, vitamin-D protocol |
+| `medication` | rose     | `#f87171` | antibiotics, accutane, TRT |
+| `lifestyle`  | sky      | `#38bdf8` | sober month, no-caffeine week, jet-lag, illness |
+
+When adding analysis surfaces that read `tracking_phases`, please
+respect the user's category strings as-is (don't normalize them) and
+use `tracking_phases.color` if set; only fall back to the table above
+when the column is NULL. The dashboard already does this — see
+`dashboard/src/components/health/BodyCompTab.tsx`'s `colorForPhase()`.
+
+If you find yourself wanting a sixth canonical category that fits the
+"personal-scale, single-user" scope, open an issue first so we can
+agree on a color before it ships.
 
 ## Scope guidance
 
