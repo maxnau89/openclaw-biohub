@@ -145,6 +145,10 @@ cd dashboard
 npm install
 npm run dev
 # → open http://localhost:3000 (auto-redirects to /health)
+
+# 6. (Optional) Install the agent persona for your LLM stack
+clawhub install biohub
+# → drops the wellness-coach skill into ./skills/biohub/
 ```
 
 Adapter-specific setup details live in

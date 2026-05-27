@@ -1,5 +1,5 @@
 ---
-name: openclaw-biohub
+name: biohub
 description: Access the user's biohub — WHOOP, Oura, Fitbit, Apple Health, and Garmin biometrics (recovery, sleep, strain, HRV, SpO₂); blood-panel biomarkers; supplement stack and intake history; daily nutrition; body composition (calipers / scale / DEXA) and user-defined tracking phases (bulks, cuts, supplement courses). Use when the user asks about their recovery score, sleep quality, HRV trends, training readiness, blood-work results, supplement effects, body composition, fat loss, or wants a health status update grounded in their own biometric data. Multi-source design — queries on `daily_metrics` are source-agnostic. Not medical advice.
 homepage: https://github.com/maxnau89/openclaw-biohub
 ---
