@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.0",
@@ -24,5 +26,10 @@
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.1.7",
+    "jsdom": "29.1.1",
+    "vitest": "4.1.7"
   }
 }
