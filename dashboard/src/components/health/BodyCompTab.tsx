@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { GlassCard, CardHeader } from '@/components/cards/GlassCard';
-import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle } from 'lucide-react';
+import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle, User } from 'lucide-react';
+import { BodyModel3D } from './body-sim/BodyModel3D';
+import type { Sex, Skinfolds } from './body-sim/anthropometrics';
 
 type BodyCompEntry = {
   id: number;
@@ -379,6 +381,101 @@ function ForwardSim({ data }: { data: ApiData }) {
   );
 }
 
+// ─── 3D body simulator ──────────────────────────────────────────────────────
+
+function skinfoldsFromEntry(entry: ApiData['insights']['last_measurement']):
+  Skinfolds | undefined {
+  if (!entry) return undefined;
+  const sites: (keyof Skinfolds)[] = [
+    'chest', 'abdominal', 'thigh', 'tricep',
+    'subscapular', 'suprailiac', 'midaxillary',
+  ];
+  const sf: Partial<Skinfolds> = {};
+  for (const s of sites) {
+    const mm = (entry as unknown as Record<string, number | null>)[`${s}_mm`];
+    if (mm == null) return undefined;
+    sf[s] = mm;
+  }
+  return sf as Skinfolds;
+}
+
+function SexToggle({ value, onChange }: { value: Sex; onChange: (s: Sex) => void }) {
+  const btn = (s: Sex, label: string) => (
+    <button
+      onClick={() => onChange(s)}
+      className={
+        'px-3 py-1 text-xs rounded transition ' +
+        (value === s
+          ? 'bg-white/15 text-white'
+          : 'text-white/40 hover:text-white/70')
+      }
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex items-center gap-1 bg-white/5 rounded p-0.5">
+      {btn('m', 'Male')}
+      {btn('f', 'Female')}
+    </div>
+  );
+}
+
+function BodySimCard({ data }: { data: ApiData }) {
+  const last = data.insights.last_measurement;
+  const [sex, setSex] = useState<Sex>(() => {
+    if (typeof window === 'undefined') return 'm';
+    return (window.localStorage.getItem('biohub.bodysim.sex') as Sex) || 'm';
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('biohub.bodysim.sex', sex);
+    }
+  }, [sex]);
+
+  if (!last) {
+    return (
+      <GlassCard>
+        <CardHeader title="3D body composition" icon={<User className="w-4 h-4" />} />
+        <div className="p-4 pt-2 text-sm text-white/60">
+          Log a body-composition entry to see the 3D model.
+        </div>
+      </GlassCard>
+    );
+  }
+
+  const weight = last.weight_kg ?? data.insights.weight_current ?? 75;
+  const bf = last.body_fat_pct ?? 18;
+  const skinfolds = skinfoldsFromEntry(last);
+  const heightM = 1.75;  // TODO: read from user profile once we have one
+  const captionMethod = last.method ?? 'manual';
+  const captionDate = last.date;
+
+  return (
+    <GlassCard>
+      <CardHeader title="3D body composition" icon={<User className="w-4 h-4" />}>
+        <SexToggle value={sex} onChange={setSex} />
+      </CardHeader>
+      <div className="p-4 pt-2 space-y-2">
+        <BodyModel3D
+          weightKg={weight}
+          bfPct={bf}
+          heightM={heightM}
+          sex={sex}
+          skinfolds={skinfolds}
+          height={480}
+        />
+        <p className="text-xs text-white/40">
+          Current — {weight.toFixed(1)} kg, {bf.toFixed(1)}% BF from {captionDate} ({captionMethod})
+          {skinfolds
+            ? ' · regional shape driven by 7-site caliper'
+            : ' · uniform-distribution fallback (no caliper data)'}
+        </p>
+      </div>
+    </GlassCard>
+  );
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export function BodyCompositionTab() {
@@ -537,6 +634,9 @@ export function BodyCompositionTab() {
           </table>
         </div>
       </GlassCard>
+
+      {/* 3D body simulator */}
+      <BodySimCard data={data} />
 
       {/* Forward simulator */}
       <GlassCard>
