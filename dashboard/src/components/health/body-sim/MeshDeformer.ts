@@ -176,12 +176,19 @@ export class MeshDeformer {
     const baseSkinfolds = BASELINE_SKINFOLDS_MM[params.sex];
     const baseBF = BASELINE_BF_PCT[params.sex];
 
-    // Per-landmark fat-depth delta in cm (skinfold mm → fat thickness):
-    //   depth_cm = max(clampFloor, ((current - base) / 2) / 10)
-    // The /2 is because a caliper measures a double layer of skin + fat;
-    // /10 converts mm → cm. We clamp to avoid negative thickness pulling
-    // the mesh through itself when a very lean user is read against a
-    // less-lean baseline.
+    // Per-landmark fat-depth delta in cm. Two-stage transform:
+    //   1) skinfold mm → fat-depth mm via the /2 (caliper pinches a double
+    //      layer of skin + fat). Clamp inward so we can't pull the surface
+    //      through the baseline lean skeleton.
+    //   2) signed sqrt falloff: displacement_cm = sign(Δ) · √|Δ_mm| · GAIN
+    //      A linear /10 makes small deltas vanish — a user whose actual
+    //      body composition is close to the baked baseline gets a Current
+    //      shape that matches well, but the Goal body in compare-mode
+    //      collapses to the baseline as the projected fat drops. Sqrt
+    //      amplifies near-zero deltas while compressing the extremes,
+    //      so the Goal reads as visibly leaner without overshooting the
+    //      Apple-shape case into "bulging" territory.
+    const SQRT_GAIN = 0.22;
     const deltaCm = new Array<number>(LANDMARK_NAMES.length);
     for (let li = 0; li < LANDMARK_NAMES.length; li++) {
       const name = LANDMARK_NAMES[li];
@@ -196,7 +203,7 @@ export class MeshDeformer {
       // Floor: never pull more than 60 % of the baseline thickness inward.
       const floor = -((baseSkinfolds[name] - 2) / 2) * 0.6;
       const clamped = Math.max(floor, deltaMM);
-      deltaCm[li] = clamped / 10;
+      deltaCm[li] = Math.sign(clamped) * Math.sqrt(Math.abs(clamped)) * SQRT_GAIN;
     }
 
     const pos = this.geometry.attributes.position as THREE.BufferAttribute;
