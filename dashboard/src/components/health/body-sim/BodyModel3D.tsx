@@ -36,8 +36,14 @@ export interface BodyModel3DProps {
   height?: number;
 }
 
-const SKIN_COLOR = 0xe2c4a0;
-const GOAL_COLOR = 0x80d0a0;
+// Slightly warmer than the previous 0xe2c4a0 — adds red/orange under-tone
+// so the silhouette reads as living tissue, not a chalk maquette.
+const SKIN_COLOR = 0xeac4a4;
+const GOAL_COLOR = 0x86d6a8;
+// Subtle warm emissive — fakes subsurface scattering "glow" without the
+// shader cost. ~6 % of full intensity, in a warm rose tone.
+const SKIN_EMISSIVE = 0x2a0c08;
+const GOAL_EMISSIVE = 0x0c2a18;
 
 export function BodyModel3D({
   weightKg, bfPct, heightM, sex, skinfolds, compareWith, height = 480,
@@ -150,10 +156,12 @@ export function BodyModel3D({
       let goalDeformer: InstanceType<typeof MeshDeformer> | null = null;
       let lastSex: Sex | null = null;
 
-      function makeSkinMaterial(color: number) {
+      function makeSkinMaterial(color: number, emissive: number) {
         return new THREE.MeshStandardMaterial({
           color,
-          roughness: 0.55,
+          emissive,
+          emissiveIntensity: 0.6,
+          roughness: 0.62,
           metalness: 0.0,
         });
       }
@@ -180,11 +188,11 @@ export function BodyModel3D({
         // — POC1's "second body invisible" bug came from shared buffers.
         currentBody = new THREE.Mesh(
           (base.geometry as THREE.BufferGeometry).clone(),
-          makeSkinMaterial(SKIN_COLOR),
+          makeSkinMaterial(SKIN_COLOR, SKIN_EMISSIVE),
         );
         goalBody = new THREE.Mesh(
           (base.geometry as THREE.BufferGeometry).clone(),
-          makeSkinMaterial(GOAL_COLOR),
+          makeSkinMaterial(GOAL_COLOR, GOAL_EMISSIVE),
         );
         currentDeformer = new MeshDeformer(currentBody);
         goalDeformer = new MeshDeformer(goalBody);

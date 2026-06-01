@@ -453,9 +453,11 @@ function BodySimCard({ data }: { data: ApiData }) {
 
   return (
     <GlassCard>
-      <CardHeader title="3D body composition" icon={<User className="w-4 h-4" />}>
-        <SexToggle value={sex} onChange={setSex} />
-      </CardHeader>
+      <CardHeader
+        title="3D body composition"
+        icon={<User className="w-4 h-4" />}
+        badge={<SexToggle value={sex} onChange={setSex} />}
+      />
       <div className="p-4 pt-2 space-y-2">
         <BodyModel3D
           weightKg={weight}
