@@ -227,13 +227,16 @@ export function BodyModel3D({
           // Side-by-side framing.
           currentBody.position.x = -0.55;
           goalBody.position.x = 0.55;
-          camera.position.set(0, 1.05, 4.6);
+          camera.position.set(0, 1.00, 4.0);
           controls.target.set(0, 0.95, 0);
         } else {
           goalBody.visible = false;
           currentBody.position.x = 0;
-          camera.position.set(0, 1.05, 3.4);
-          controls.target.set(0, 0.95, 0);
+          // Tighter framing: pulled in from 3.4m → 2.8m, eye-level target
+          // dropped to 0.90m (just above body center of mass) so the head
+          // is in the upper third — natural rule-of-thirds composition.
+          camera.position.set(0, 1.00, 2.8);
+          controls.target.set(0, 0.90, 0);
         }
       }
 
