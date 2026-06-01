@@ -117,15 +117,22 @@ export function BodyModel3D({
       }
 
       // ── Three-point lighting, scaled for ACES tonemap ─────────────────────
-      scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-      const key = new THREE.DirectionalLight(0xffffff, 2.2);
-      key.position.set(2.5, 3.0, 2.5);
+      // Slightly cooler ambient so the warm key reads as direct sunlight
+      // rather than flat overall warmth.
+      scene.add(new THREE.AmbientLight(0xbfd0e0, 0.28));
+      // Key: warm directional, slightly more lateral so it carves the
+      // deltoid + ribcage silhouette better.
+      const key = new THREE.DirectionalLight(0xfff0d8, 2.6);
+      key.position.set(3.0, 3.2, 2.0);
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0x88aacc, 0.9);
-      fill.position.set(-3.0, 1.8, 1.5);
+      // Fill: muted cool blue-grey, low enough not to fight the key but
+      // present enough to fill in shadows on the opposite side.
+      const fill = new THREE.DirectionalLight(0xa3b4cc, 0.55);
+      fill.position.set(-3.0, 1.5, 1.0);
       scene.add(fill);
-      const rim = new THREE.DirectionalLight(0xffffff, 1.4);
-      rim.position.set(0, 2.0, -3.0);
+      // Rim: warm-tinged back light to separate body from background.
+      const rim = new THREE.DirectionalLight(0xffe4c0, 1.1);
+      rim.position.set(0, 2.2, -3.0);
       scene.add(rim);
 
       // Floor disc for grounding
