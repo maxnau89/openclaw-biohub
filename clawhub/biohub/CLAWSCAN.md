@@ -1,4 +1,4 @@
-# Clawscan note — biohub v0.3.0
+# Clawscan note — biohub v0.4.0
 
 Read-only adapter between an LLM agent and the user's local SQLite
 health DBs. **No network I/O, no credential handling, no dynamic
@@ -57,7 +57,7 @@ The skill itself is a strictly local consumer.
 |---|---|
 | Repo | https://github.com/maxnau89/openclaw-biohub |
 | License | MIT (skill + backing software) |
-| Tests | 141 passing on Python 3.11/3.12/3.13 + dashboard build |
-| Release | https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.3.0 |
+| Tests | 141 Python + 33 dashboard, all green |
+| Release | https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.4.0 |
 | CI | https://github.com/maxnau89/openclaw-biohub/actions |
 | Maintainer | github.com/maxnau89 |
