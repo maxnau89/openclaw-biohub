@@ -13,12 +13,21 @@ repo on GitHub). See `pipeline/body-sim/README.md`.
 The script:
   1. Imports the neutral MakeHuman base.obj (CC0), keeping only the
      `body` group (skipping the 250+ skeleton-joint helper meshes).
-  2. Applies the caucasian-{sex}-young target (CC0) as a morph.
-  3. Recomputes normals + smooth-shades.
-  4. Decimates to a manageable triangle count.
-  5. Normalizes height to 1.75 m and uprights the mesh (Z-up in
+  2. Applies the caucasian-{sex}-young target (CC0) as the base shape.
+  3. Adds four GLB morph targets driven by FFMI and BF% at runtime:
+       - muscle_high / muscle_low — bipolar deltas from
+         `universal-{sex}-young-{max|min}muscle-averageweight`
+       - weight_high / weight_low — bipolar deltas from
+         `universal-{sex}-young-averagemuscle-{max|min}weight`
+     All deltas are computed relative to
+     `universal-{sex}-young-averagemuscle-averageweight` so the
+     base shape is the canonical center of the MakeHuman macro grid.
+  4. Recomputes normals + smooth-shades.
+  5. Decimates to a manageable triangle count.
+  6. Normalizes height to 1.75 m and uprights the mesh (Z-up in
      Blender, which exports to Y-up in GLB).
-  6. Exports as GLB to the requested output path.
+  7. Exports as GLB with `export_morph=True` so Three.js can blend
+     the morph targets via `mesh.morphTargetInfluences[]`.
 
 Landmark vertex groups for the 7 Jackson-Pollock caliper sites are
 NOT baked into the GLB — Blender's glTF exporter strips vertex groups
@@ -143,7 +152,10 @@ def build_body_mesh(
 ):
     """Parse the OBJ, apply target offsets, build a Blender mesh
     containing only the `body` group faces with vertices remapped to
-    a compact 0..N indexing. Returns the new mesh object."""
+    a compact 0..N indexing. Returns the new mesh object plus a
+    dict mapping original global vertex indices to the new compact
+    indices — needed so callers can map macro-target deltas onto
+    shape keys after the fact."""
     raw_verts, body_faces = parse_obj_body_group(obj_path)
     print(f'  parsed OBJ: {len(raw_verts)} global verts, '
           f'{len(body_faces)} body faces')
@@ -177,7 +189,61 @@ def build_body_mesh(
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
-    return obj
+    return obj, new_idx
+
+
+def add_morph_target(
+    obj,
+    name: str,
+    delta_global: dict[int, tuple[float, float, float]],
+    new_idx: dict[int, int],
+) -> None:
+    """Attach a morph target (Blender shape key) to `obj`.
+
+    `delta_global` is keyed by ORIGINAL global MakeHuman vertex indices
+    (the same numbering the .target files use). `new_idx` is the map
+    from those global indices to the compact 0..N indices that survived
+    `build_body_mesh`'s body-group filter.
+
+    Blender shape keys store *absolute* vertex positions, so we add the
+    delta on top of the Basis position. The exporter then writes the
+    morph target as a relative delta in glTF.
+    """
+    # First call lazily creates the Basis shape key (same positions as
+    # the rest pose). Subsequent calls create named shape keys that
+    # start out as copies of Basis and which we mutate below.
+    if obj.data.shape_keys is None:
+        obj.shape_key_add(name='Basis')
+    sk = obj.shape_key_add(name=name)
+    sk.value = 0.0  # influence is set by the runtime; bake-time = neutral
+    n_applied = 0
+    for g_idx, (dx, dy, dz) in delta_global.items():
+        if g_idx not in new_idx:
+            continue   # vertex isn't in the `body` subset (e.g. eye/joint helpers)
+        i = new_idx[g_idx]
+        co = sk.data[i].co
+        sk.data[i].co = (co.x + dx, co.y + dy, co.z + dz)
+        n_applied += 1
+    print(f'    morph {name!r}: {n_applied} delta vertices')
+
+
+def compute_bipolar_delta(
+    pole: dict[int, tuple[float, float, float]],
+    center: dict[int, tuple[float, float, float]],
+) -> dict[int, tuple[float, float, float]]:
+    """Returns `pole − center` per vertex index. Both inputs are sparse
+    dicts (only listed vertex indices have a delta from the OBJ base)."""
+    keys = set(pole.keys()) | set(center.keys())
+    out: dict[int, tuple[float, float, float]] = {}
+    for k in keys:
+        px, py, pz = pole.get(k, (0.0, 0.0, 0.0))
+        cx, cy, cz = center.get(k, (0.0, 0.0, 0.0))
+        dx, dy, dz = px - cx, py - cy, pz - cz
+        # Skip near-zero deltas so the shape-key data stays sparse and the
+        # GLB stays small.
+        if abs(dx) + abs(dy) + abs(dz) > 1e-5:
+            out[k] = (dx, dy, dz)
+    return out
 
 
 def smooth_shade(obj) -> None:
@@ -199,32 +265,31 @@ def decimate(obj, ratio: float) -> None:
     bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
-def normalize_transform(obj) -> None:
-    """Pre-orientation: MakeHuman OBJ is Y-up, so we treat the Y axis as
-    anatomical height for translation + scale. The follow-up upright()
-    step then rotates -90° about X so the body stands up in Blender's
-    Z-up world (which becomes Y-up again after GLB export)."""
+def normalize_and_upright(obj) -> None:
+    """Translate so feet at Y=0, scale to TARGET_HEIGHT_M, then rotate
+    +90° about X so the body stands upright in Blender's Z-up world
+    (head at +Z, feet at Z=0). After GLB export with `export_yup=True`,
+    Blender converts back to Y-up — head at +Y in the final GLB.
+
+    Uses object-level transform + transform_apply so Blender propagates
+    the same TRS through every shape key automatically. Mutating
+    `obj.data.vertices` in-place would skip the shape keys and produce
+    wildly wrong morph deltas in the exported GLB.
+    """
     mesh = obj.data
     ys = [v.co.y for v in mesh.vertices]
     y_min, y_max = min(ys), max(ys)
     h = y_max - y_min
     s = TARGET_HEIGHT_M / h
-    # Translate so feet at Y=0, then uniform scale.
-    for v in mesh.vertices:
-        v.co.x = v.co.x * s
-        v.co.y = (v.co.y - y_min) * s
-        v.co.z = v.co.z * s
-
-
-def upright(obj) -> None:
-    """Rotate +90° about X so the body stands upright in Blender's
-    Z-up world (head at +Z, feet at Z=0). The MakeHuman OBJ has the
-    head at +Y; the +90° X rotation maps +Y → +Z. Bakes the rotation
-    into the vertex data so the exported GLB has clean transforms."""
-    rot = Matrix.Rotation(math.pi / 2, 4, 'X')
-    for v in obj.data.vertices:
-        co = rot @ Vector((v.co.x, v.co.y, v.co.z))
-        v.co = co
+    # Transform order in Blender's transform_apply: scale, then rotate,
+    # then translate. The MakeHuman OBJ's anatomical-up was +Y; after the
+    # +π/2 X rotation, that becomes +Z. So the *translation* to put feet
+    # at Z=0 has to be in Z, not Y.
+    obj.scale = (s, s, s)
+    obj.rotation_euler = (math.pi / 2, 0.0, 0.0)
+    obj.location = (0.0, 0.0, -y_min * s)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
 
 def export_glb(obj, out_path: Path) -> None:
@@ -232,12 +297,19 @@ def export_glb(obj, out_path: Path) -> None:
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
+    # `export_apply=False` is required when shape keys are present, otherwise
+    # Blender refuses to bake the modifiers (and decimate isn't in use here
+    # anyway). Morph normals stay computed so the GPU re-shades cleanly when
+    # the runtime blends targets.
+    has_morphs = obj.data.shape_keys is not None
     bpy.ops.export_scene.gltf(
         filepath=str(out_path),
         export_format='GLB',
         use_selection=True,
-        export_apply=True,
+        export_apply=not has_morphs,
         export_yup=True,
+        export_morph=has_morphs,
+        export_morph_normal=has_morphs,
         export_attributes=True,
     )
 
@@ -260,17 +332,61 @@ def main() -> int:
     offsets = parse_target_file(target_file)
     print(f'  parsed {len(offsets)} vertex offsets from {target_file.name}')
 
-    obj = build_body_mesh(base_obj, offsets)
-    n_groups = len(obj.vertex_groups)
-    print(f'  added {n_groups} landmark vertex groups')
+    obj, new_idx = build_body_mesh(base_obj, offsets)
+
+    # ── Morph targets (muscle ± and weight ±) ────────────────────────────
+    # All 5 macro target files have the same vertex domain as base.obj. We
+    # express each "extreme" as a bipolar delta from the canonical center
+    # (avgmuscle-avgweight) so the shape key value sits at 0 at neutral
+    # and 1 at the extreme. The runtime can clamp to [-1, 1] (Three.js'
+    # morphTargetInfluences accept any float but values outside [-1, 1]
+    # extrapolate beyond the baked shape).
+    macro_paths = {
+        'center':       data_dir / f'{args.sex}-averagemuscle-averageweight.target',
+        'muscle_high':  data_dir / f'{args.sex}-maxmuscle-averageweight.target',
+        'muscle_low':   data_dir / f'{args.sex}-minmuscle-averageweight.target',
+        'weight_high':  data_dir / f'{args.sex}-averagemuscle-maxweight.target',
+        'weight_low':   data_dir / f'{args.sex}-averagemuscle-minweight.target',
+    }
+    macros = {}
+    for name, p in macro_paths.items():
+        if not p.exists():
+            print(f'  warn: macro target missing — {p.name}; skipping morph {name!r}')
+            continue
+        macros[name] = parse_target_file(p)
+    if 'center' in macros:
+        for pole in ('muscle_high', 'muscle_low', 'weight_high', 'weight_low'):
+            if pole not in macros:
+                continue
+            delta = compute_bipolar_delta(macros[pole], macros['center'])
+            add_morph_target(obj, pole, delta, new_idx)
+
+    # ── Female-only: breast cup volume morphs ────────────────────────────
+    # MakeHuman's weight macro covers very little chest tissue, so women
+    # don't visibly change breast size as BF% varies. These two extra
+    # morphs (sourced from the dedicated `breast/` target dir) get driven
+    # by BF % in the dashboard alongside `weight_high` / `weight_low`.
+    if args.sex == 'female':
+        for pole in ('breast_high', 'breast_low'):
+            src_name = 'female-breast-' + ('maxcup' if pole.endswith('high') else 'mincup') + '.target'
+            src_path = data_dir / src_name
+            if not src_path.exists():
+                print(f'  warn: {src_name} missing; skipping {pole!r}')
+                continue
+            # The breast targets are already deltas from the macro center
+            # (averagemuscle-averageweight-averagecup-averagefirmness), so
+            # we don't subtract anything — feed them as-is.
+            delta = parse_target_file(src_path)
+            add_morph_target(obj, pole, delta, new_idx)
 
     smooth_shade(obj)
-    decimate(obj, DECIMATE_RATIO)
-    print(f'  decimated to {len(obj.data.polygons)} faces')
+    # Decimation is skipped — Blender doesn't allow Decimate modifier on
+    # meshes with shape keys. The full ~13k-vert body is small enough
+    # (<1 MB GLB even with 4 morph targets, since deltas are sparse).
 
-    normalize_transform(obj)
-    upright(obj)
-    h = max(v.co.z for v in obj.data.vertices) - min(v.co.z for v in obj.data.vertices)
+    normalize_and_upright(obj)
+    bb = obj.bound_box
+    h = max(p[2] for p in bb) - min(p[2] for p in bb)
     print(f'  normalized + upright: height = {h:.3f} m')
 
     export_glb(obj, Path(args.out))

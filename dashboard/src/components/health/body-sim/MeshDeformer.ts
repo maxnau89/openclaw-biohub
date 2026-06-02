@@ -54,6 +54,14 @@ const LANDMARKS: Record<LandmarkName, LandmarkSpec> = {
 
 const LANDMARK_NAMES = Object.keys(LANDMARKS) as LandmarkName[];
 
+/** Hermite smoothstep — eases from 0 → 1 over the open interval (edge0, edge1).
+ *  Accepts inverted edges (edge0 > edge1) for "fade out" by setting edge0 high.
+ *  Used to make side-filter boundaries soft so the deformation doesn't ridge. */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
 // ─── Baseline skinfolds for the baked GLBs ──────────────────────────────────
 //
 // Educated guesses for the MakeHuman caucasian-young default at ~15 % BF
@@ -123,10 +131,11 @@ export class MeshDeformer {
     // which surface of the body the vertex sits on regardless of the mesh's
     // overall bounding-box proportions. That makes the filter robust across
     // different base meshes (T-pose vs A-pose, different arm spans, etc.).
-    //   - front:    normal points anterior (+Z)
-    //   - back:     normal points posterior (-Z)
-    //   - lateral:  normal points sideways (|X| dominant), Z near zero
-    //   - arm-back: lateral component + posterior Z component
+    //
+    // All side filters use **smoothstep falloffs** instead of binary cutoffs
+    // so vertices on the boundary of a region get partial weight. Without
+    // this, deformation at high skinfold deltas produces visible ridges
+    // (sharp transitions between "fully displaced" and "not displaced" verts).
     this.weights = new Float32Array(this.nVerts * LANDMARK_NAMES.length);
     for (let vi = 0; vi < this.nVerts; vi++) {
       const y = this.basePositions[vi * 3 + 1];
@@ -136,37 +145,40 @@ export class MeshDeformer {
       const nz = normal.getZ(vi);
       // Filter out vertices on tops of head, soles of feet — they shouldn't
       // pick up any caliper weight.
-      const isHorizontal = Math.abs(ny) > 0.85;
+      const horizontalGate = smoothstep(0.95, 0.75, Math.abs(ny));
 
       for (let li = 0; li < LANDMARK_NAMES.length; li++) {
         const lm = LANDMARKS[LANDMARK_NAMES[li]];
         // Y-axis Gaussian falloff
         const dy = (yNorm - lm.yFrac) / lm.sigmaY;
-        let w = Math.exp(-0.5 * dy * dy);
-        if (isHorizontal) w = 0;
+        let w = Math.exp(-0.5 * dy * dy) * horizontalGate;
 
+        // Side gate: 0..1 weight by how well the vertex's surface direction
+        // matches the landmark's anatomical region. Soft on both boundaries.
+        let sideGate = 0;
         switch (lm.side) {
           case 'front':
-            // Anterior surface: forward-facing normal, near body midline.
-            if (nz < 0.30) w = 0;
-            if (Math.abs(nx) > 0.55) w = 0;
+            // Anterior surface: nz close to +1, |nx| small.
+            sideGate = smoothstep(0.15, 0.55, nz) *
+                       smoothstep(0.75, 0.45, Math.abs(nx));
             break;
           case 'back':
-            if (nz > -0.30) w = 0;
-            if (Math.abs(nx) > 0.55) w = 0;
+            // Posterior surface: nz close to −1, |nx| small.
+            sideGate = smoothstep(0.15, 0.55, -nz) *
+                       smoothstep(0.75, 0.45, Math.abs(nx));
             break;
           case 'arm-back':
-            // Upper-arm posterior: lateral-facing with rearward bias.
-            if (Math.abs(nx) < 0.50) w = 0;
-            if (nz > 0.20) w = 0;
+            // Upper-arm posterior: |nx| dominant (sideways) + nz negative.
+            sideGate = smoothstep(0.35, 0.65, Math.abs(nx)) *
+                       smoothstep(0.30, -0.10, nz);
             break;
           case 'lateral':
-            // Side of torso: lateral-facing, Z component small.
-            if (Math.abs(nx) < 0.55) w = 0;
-            if (Math.abs(nz) > 0.55) w = 0;
+            // Torso flank: |nx| dominant, |nz| small.
+            sideGate = smoothstep(0.40, 0.70, Math.abs(nx)) *
+                       smoothstep(0.65, 0.35, Math.abs(nz));
             break;
         }
-        this.weights[vi * LANDMARK_NAMES.length + li] = w;
+        this.weights[vi * LANDMARK_NAMES.length + li] = w * sideGate;
       }
     }
   }

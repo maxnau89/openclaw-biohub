@@ -45,6 +45,64 @@ const GOAL_COLOR = 0x86d6a8;
 const SKIN_EMISSIVE = 0x2a0c08;
 const GOAL_EMISSIVE = 0x0c2a18;
 
+// ─── MakeHuman macro morph baseline + spans ──────────────────────────────────
+//
+// The baked GLBs are at the canonical "average muscle, average weight" point
+// of MakeHuman's macro grid. The four morph targets (muscle_high, muscle_low,
+// weight_high, weight_low) move the body toward each grid extreme when their
+// influence is 1.0. We compute influences live from the user's FFMI + BF %:
+//
+//   muscle_high = clamp01((userFFMI − baselineFFMI) / FFMI_SPAN)
+//   weight_high = clamp01((userBF   − baselineBF)   / BF_SPAN)
+//   …and the _low variants for the opposite direction.
+//
+// FFMI_SPAN: 2.5 FFMI points reaches full max-muscle influence.
+//   The macro target itself is a "well-developed but realistic" build, not
+//   a competition bodybuilder — saturating early ensures a user at FFMI 23
+//   (typical intermediate lifter) sees the morph at full effect instead
+//   of being interpolated halfway.
+// BF_SPAN:   7 BF % points to full influence.
+const BASELINE_FFMI: Record<Sex, number> = { m: 21.0, f: 18.5 };
+const BASELINE_BF:   Record<Sex, number> = { m: 15,   f: 22 };
+const FFMI_SPAN = 2.5;
+const BF_SPAN = 7.0;
+
+function clamp01(x: number) { return Math.max(0, Math.min(1, x)); }
+
+function computeMorphInfluences(
+  weightKg: number, bfPct: number, heightM: number, sex: Sex,
+): Record<string, number> {
+  const LBM = weightKg * (1 - bfPct / 100);
+  const ffmi = LBM / (heightM * heightM);
+  const dFfmi = ffmi - BASELINE_FFMI[sex];
+  const dBf = bfPct - BASELINE_BF[sex];
+  const inf: Record<string, number> = {
+    muscle_high: clamp01( dFfmi / FFMI_SPAN),
+    muscle_low:  clamp01(-dFfmi / FFMI_SPAN),
+    weight_high: clamp01( dBf / BF_SPAN),
+    weight_low:  clamp01(-dBf / BF_SPAN),
+  };
+  // Female-only chest tissue: scales 1:1 with the BF % delta. MakeHuman's
+  // weight macro barely touches breast geometry, so we drive a dedicated
+  // breast morph in parallel from the same signal.
+  if (sex === 'f') {
+    inf.breast_high = clamp01( dBf / BF_SPAN);
+    inf.breast_low  = clamp01(-dBf / BF_SPAN);
+  }
+  return inf;
+}
+
+function setMorphInfluences(mesh: THREE.Mesh, weightKg: number, bfPct: number, heightM: number, sex: Sex) {
+  const dict = mesh.morphTargetDictionary;
+  const inf = mesh.morphTargetInfluences;
+  if (!dict || !inf) return;
+  const values = computeMorphInfluences(weightKg, bfPct, heightM, sex);
+  for (const [name, v] of Object.entries(values)) {
+    const idx = dict[name];
+    if (idx !== undefined) inf[idx] = v;
+  }
+}
+
 export function BodyModel3D({
   weightKg, bfPct, heightM, sex, skinfolds, compareWith, height = 480,
 }: BodyModel3DProps) {
@@ -193,6 +251,14 @@ export function BodyModel3D({
         const base = await loadMesh(s);
         // Clone two independent meshes so compare-mode never shares geometry
         // — POC1's "second body invisible" bug came from shared buffers.
+        //
+        // `new THREE.Mesh(geometry, material)` calls updateMorphTargets()
+        // which rebuilds morphTargetDictionary using fallback string indices
+        // ("0", "1", ...) because the cloned geometry's morphAttributes don't
+        // carry the original target names. The names were originally written
+        // onto the base mesh by GLTFLoader from `extras.targetNames`; we
+        // copy them across so callers can address morphs by name.
+        const baseDict = base.morphTargetDictionary ?? {};
         currentBody = new THREE.Mesh(
           (base.geometry as THREE.BufferGeometry).clone(),
           makeSkinMaterial(SKIN_COLOR, SKIN_EMISSIVE),
@@ -201,6 +267,8 @@ export function BodyModel3D({
           (base.geometry as THREE.BufferGeometry).clone(),
           makeSkinMaterial(GOAL_COLOR, GOAL_EMISSIVE),
         );
+        currentBody.morphTargetDictionary = { ...baseDict };
+        goalBody.morphTargetDictionary = { ...baseDict };
         currentDeformer = new MeshDeformer(currentBody);
         goalDeformer = new MeshDeformer(goalBody);
         scene.add(currentBody);
@@ -212,6 +280,11 @@ export function BodyModel3D({
         await ensureBodies(p.sex);
         if (!currentBody || !goalBody || !currentDeformer || !goalDeformer) return;
 
+        // Step 1: broad muscle/weight macros via GLB morph targets.
+        // Step 2: fine regional shape via MeshDeformer (caliper-driven).
+        // The two compose additively in Three's vertex shader — morphs
+        // sit on top of whatever positions the deformer writes.
+        setMorphInfluences(currentBody, p.weightKg, p.bfPct, p.heightM, p.sex);
         currentDeformer.apply({
           weightKg: p.weightKg, bfPct: p.bfPct, heightM: p.heightM,
           sex: p.sex, skinfolds: p.skinfolds,
@@ -219,6 +292,7 @@ export function BodyModel3D({
 
         if (p.compareWith) {
           goalBody.visible = true;
+          setMorphInfluences(goalBody, p.compareWith.weightKg, p.compareWith.bfPct, p.heightM, p.sex);
           goalDeformer.apply({
             weightKg: p.compareWith.weightKg, bfPct: p.compareWith.bfPct,
             heightM: p.heightM, sex: p.sex,
