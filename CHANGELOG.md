@@ -7,6 +7,76 @@ v0.x means the schema and CLI may break between minor versions.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-02
+
+### Added
+
+- **3D body composition simulator** under
+  `/health?tab=body-comp` (or the standalone `/health/body-composition`).
+  Loads a sex-specific anatomical mannequin and deforms it live from
+  the user's body-comp data. Three signals drive the shape:
+  - **FFMI (lean body mass / height²)** → MakeHuman muscle macro morph
+  - **Body-fat %** → MakeHuman weight macro morph (+ a dedicated
+    breast morph for female bodies, since MH's weight macro barely
+    touches chest tissue)
+  - **7-site Jackson-Pollock caliper data** → regional fat
+    distribution via per-landmark vertex displacement
+    (`MeshDeformer.ts`) — apple, pear, and even distributions all
+    read distinctly.
+  Compare-mode renders current vs. projected (driven by the existing
+  Forward Simulator's sliders) side-by-side, with the goal body
+  tinted green.
+- **Bake pipeline** at `pipeline/body-sim/` (`fetch_mh_data.sh` +
+  `bake_meshes.py`) that pulls MakeHuman's CC0 base mesh + macro
+  targets and produces `male-base.glb` + `female-base.glb` with 4–6
+  morph targets each. No MakeHuman install required (only its data
+  files are consumed). Blender 5.x needed; documented in
+  `pipeline/body-sim/README.md`.
+- **`anthropometrics.ts`** (typed TypeScript port of the Nacht-Session
+  POC's math engine): sex-specific US Navy BF % (cm-metric Hodgdon-
+  Beckett / Siri form), FFMI, `predictGirths`, forward simulator
+  (cut / bulk / maintenance with protein guard rails + lifter level),
+  reverse planner. Bug fixed vs. POC: original used the inches-
+  coefficient Navy form with cm inputs, returning BF % ~6 pts high.
+- **`MeshDeformer.ts`**: caliper-driven vertex deformation on the
+  loaded GLB. Per-vertex weights are computed once at mesh load from
+  smoothstep-gated normal directions + Y-Gaussian falloff at each
+  caliper site; `apply(params)` re-displaces vertices along normals
+  by sqrt-falloff-scaled skinfold deltas. Composes additively in the
+  Three.js vertex shader with the GLB's morph targets.
+- **Vitest infrastructure** for the dashboard package (`vitest.config.ts`
+  + jsdom env). Math engine + MeshDeformer + BodyModel3D smoke test
+  → 33 cases total covering Navy roundtrip both sexes, FFMI sanity,
+  forward/reverse sim paths, regional deformation (apple/pear/lean),
+  smoothstep filter integrity, React mount/unmount under jsdom.
+- **`docs/screenshots/gallery/`** — self-contained static HTML page
+  that renders 11 body profiles (muscle × weight × both sexes) with
+  localStorage-backed notes textareas. Used for iterative QA between
+  fine-tuning passes; no server required.
+
+### Changed
+
+- `dashboard/src/components/health/BodyCompTab.tsx` —
+  `ForwardSim`'s state lifted into a shared `useForwardSim(data)`
+  hook so the new `BodySimCard` can read the projected weight + BF %
+  for compare-mode. Existing text-based forward simulator card
+  unchanged below the new 3D card.
+- `dashboard/src/app/api/body-composition/route.ts` — disable the
+  10-minute response cache when `NODE_ENV !== 'production'`. Iterative
+  DB edits during dev now show up immediately on the next request;
+  prod behaviour unchanged.
+
+### No breaking changes
+
+Database schema is unchanged from v0.3. No migration needed.
+
+### Tests + CI
+
+- 33 dashboard tests (math engine, MeshDeformer, BodyModel3D smoke).
+- 141 Python tests still green from v0.3.
+- CI pipeline now runs dashboard `npm test` alongside the existing
+  Python matrix + dashboard build.
+
 ## [0.3.0] — 2026-05-22
 
 ### ⚠️ Breaking changes
@@ -181,7 +251,8 @@ wellness-coach persona pack, systemd unit + templated secrets file,
 synthetic fixtures (`fixtures/seed.py`), 15 pytest tests, GitHub
 Actions CI.
 
-[Unreleased]: https://github.com/maxnau89/openclaw-biohub/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/maxnau89/openclaw-biohub/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/maxnau89/openclaw-biohub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/maxnau89/openclaw-biohub/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/maxnau89/openclaw-biohub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.1.0

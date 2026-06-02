@@ -198,8 +198,14 @@ and the next person doesn't have to do that part again.
 - **More adapters**: Polar, Withings, Strava, Google Fit, Dexcom CGM,
   FreeStyle Libre. The interface is ready.
 - **Cross-source pattern engine** — `whoop_pattern_engine.py` is
-  WHOOP-schema-bound. A v0.4 refactor should query `daily_metrics`
+  WHOOP-schema-bound. A v0.5 refactor should query `daily_metrics`
   source-agnostically so anomaly detection works for Oura users too.
+- **Body-sim mesh upgrades** — the v0.4 baked GLBs come from
+  MakeHuman's CC0 caucasian-young base + macro morphs. A real win
+  would be a higher-resolution base mesh (more topology around the
+  abdominals + obliques), additional race / age morph targets, or
+  a Polycam-scan upload pipeline so users can ship their own
+  geometry. See `pipeline/body-sim/README.md` for the bake procedure.
 - **Documentation** — especially deployment recipes (Docker compose,
   systemd templates for non-Debian distros, fly.io, etc.).
 - **Internationalization** — the dashboard is currently English-only.
