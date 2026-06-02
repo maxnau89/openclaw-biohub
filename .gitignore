@@ -6,6 +6,7 @@ dist/
 build/
 *.egg-info/
 *.log
+tsconfig.tsbuildinfo
 
 # Python
 __pycache__/

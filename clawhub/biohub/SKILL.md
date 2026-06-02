@@ -1,6 +1,6 @@
 ---
 name: biohub
-description: Access the user's biohub — WHOOP, Oura, Fitbit, Apple Health, and Garmin biometrics (recovery, sleep, strain, HRV, SpO₂); blood-panel biomarkers; supplement stack and intake history; daily nutrition; body composition (calipers / scale / DEXA) and user-defined tracking phases (bulks, cuts, supplement courses). Use when the user asks about their recovery score, sleep quality, HRV trends, training readiness, blood-work results, supplement effects, body composition, fat loss, or wants a health status update grounded in their own biometric data. Multi-source design — queries on `daily_metrics` are source-agnostic. Not medical advice.
+description: Access the user's biohub — WHOOP, Oura, Fitbit, Apple Health, and Garmin biometrics (recovery, sleep, strain, HRV, SpO₂); blood-panel biomarkers; supplement stack and intake history; daily nutrition; body composition (calipers / scale / DEXA) with a 3D anatomical simulator driven by FFMI + BF % + 7-site caliper data; and user-defined tracking phases (bulks, cuts, supplement courses). Use when the user asks about their recovery score, sleep quality, HRV trends, training readiness, blood-work results, supplement effects, body composition, fat loss, what they would look like at a target body fat, or wants a health status update grounded in their own biometric data. Multi-source design — queries on `daily_metrics` are source-agnostic. Not medical advice.
 homepage: https://github.com/maxnau89/openclaw-biohub
 ---
 
@@ -160,6 +160,21 @@ for `training`, `diet`, `supplement`, `medication`, and `lifestyle`.
 When commenting on a body-comp datapoint, **always surface which
 tracking phases were active on that date** — the join is in the SQL
 recipe above.
+
+### 3D body simulator (v0.4)
+
+The dashboard's Body Comp tab renders a live anatomical mannequin
+(male / female toggle, CC0 MakeHuman base mesh) that deforms from
+the user's actual data:
+
+- **FFMI** (LBM / height²) → muscle morph
+- **BF %** → weight morph (+ dedicated breast morph for female bodies)
+- **7-site Jackson-Pollock caliper** → regional fat distribution
+
+Compare-mode shows current vs projected (from the Forward Sim
+sliders) side-by-side. When the user asks "what would I look like
+at X % BF" or "show me how I'd look after this cut", direct them
+to the Body Comp tab + Compare toggle. The answer is visual.
 
 ## Memory
 

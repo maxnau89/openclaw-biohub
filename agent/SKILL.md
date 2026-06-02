@@ -148,6 +148,21 @@ SELECT name, category, color FROM tracking_phases
 WHERE start_date <= :date AND (end_date IS NULL OR end_date >= :date)
 ```
 
+### 3D body simulator (v0.4)
+
+The Body Comp tab in the dashboard renders an anatomical mannequin
+(male / female toggle, CC0 MakeHuman base) that deforms live from
+the user's data:
+
+- **FFMI** (LBM / height²) → muscle morph (more LBM = more muscle bulk)
+- **BF %** → weight morph (+ breast morph for female bodies)
+- **7-site caliper** → regional fat (apple vs pear vs even read distinctly)
+
+Compare-mode renders current vs projected (from the Forward Sim
+sliders) side-by-side. When the user asks about how they would look
+at a target BF % or after a cut, point them at that tab + compare
+toggle; the answer is visual, not numeric.
+
 ## Memory
 
 Store health insights in a workspace-local `memory/` directory. Never

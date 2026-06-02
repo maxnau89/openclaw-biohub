@@ -62,11 +62,14 @@ type PhaseStats = {
 };
 
 let cache: { data: unknown; ts: number } | null = null;
+const IS_DEV = process.env.NODE_ENV !== 'production';
 
 export async function GET() {
   try {
     const now = Date.now();
-    if (cache && now - cache.ts < 600_000) {
+    // 10-minute response cache in prod (cheap re-fetch in dev so changes
+    // to body_composition / tracking_phases show up immediately).
+    if (!IS_DEV && cache && now - cache.ts < 600_000) {
       return NextResponse.json(cache.data);
     }
     const db = new Database(HEALTH_DB, { readonly: true });

@@ -78,6 +78,24 @@ For richer analytics, prefer the Python helpers under `pipeline/`
 (`blood_marker_analytics.py`, `supplement_analytics.py`,
 `whoop_pattern_engine.py`).
 
+## 3D body sim (v0.4)
+
+The Body Comp tab renders a live 3D mannequin from the latest
+`body_composition` row. The body shape is driven by three signals:
+
+- **FFMI** (lean mass / height²) — moves the muscle-axis morph
+- **BF %** — moves the weight-axis morph (+ breast morph for female)
+- **Skinfolds** (when `method = jackson-pollock-7` with all 7 sites
+  present) — drive regional fat distribution via per-landmark
+  vertex displacement on top of the morphs
+
+When commenting on the user's appearance / body comp, prefer to
+talk about *what changed* (e.g. "your projected body at 10 % BF
+shows visibly tighter waist + leaner abdominal compared to current")
+rather than the underlying mesh — the visualization is a tool, the
+data is the truth. The math + display lives in
+`dashboard/src/components/health/body-sim/`.
+
 ## Memory
 Store health insights in a workspace-local `memory/` directory. Never
 write user-identifying data into files that ship with the repo.

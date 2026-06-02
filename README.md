@@ -172,13 +172,18 @@ credential capture interactively.
   training blocks, medication, sober months — overlay onto the timeline
   as colored chips. Apple Health weights flow in automatically and
   defer to manual caliper entries.
+- **3D body simulator** *(v0.4)* — live anatomical mannequin (male +
+  female, CC0 MakeHuman base) that deforms with FFMI, BF %, and 7-site
+  caliper data. Apple vs pear vs even distribution all read distinctly.
+  Compare-mode renders current vs projected side-by-side so a cut /
+  bulk projection becomes visual instead of a number.
 
 The optional `health-insights` endpoint runs `whoop_pattern_engine.py`
 which does pairwise Pearson correlations, IsolationForest anomaly
 detection, and linear-regression recommendations.
 
 > Note: the pattern engine is still WHOOP-shaped (queries `whoop_raw.db`).
-> Making it source-agnostic is a v0.4 item — see [CHANGELOG.md](CHANGELOG.md).
+> Making it source-agnostic is a v0.5 item — see [CHANGELOG.md](CHANGELOG.md).
 
 ## Project layout
 
@@ -237,8 +242,9 @@ The dashboard and agent are independent — you can use either alone.
 
 ## Status
 
-`v0.3.0-dev` — five adapters wired, body composition + tracking phases
-in. The schema (`daily_metrics` keyed by `(source, date)` plus the new
+`v0.4.0` — five adapters, body composition + tracking phases, and a
+3D body simulator driven by FFMI + BF % + 7-site caliper data. The
+schema (`daily_metrics` keyed by `(source, date)` plus the
 `body_composition` and `tracking_phases` tables) is expected to stay
 stable from here.
 

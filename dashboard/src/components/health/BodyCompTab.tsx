@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { GlassCard, CardHeader } from '@/components/cards/GlassCard';
-import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle } from 'lucide-react';
+import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle, User } from 'lucide-react';
+import { BodyModel3D } from './body-sim/BodyModel3D';
+import type { Sex, Skinfolds } from './body-sim/anthropometrics';
 
 type BodyCompEntry = {
   id: number;
@@ -287,7 +289,12 @@ function PhaseTable({ phases }: { phases: Phase[] }) {
 // adults). User overrides via the input. Lean/fat split follows protein
 // intake — same biological constants the VPS version used.
 
-function ForwardSim({ data }: { data: ApiData }) {
+// Shared state + math for the forward simulator. Lives at the
+// BodyCompositionTab level so both the slider UI (ForwardSim) and the
+// 3D viewport (BodySimCard, in compare-mode) see the same projection.
+type ForwardSimState = ReturnType<typeof useForwardSim>;
+
+function useForwardSim(data: ApiData) {
   const currentWeight = data.insights.weight_current ?? 75;
   const currentBFRaw = data.insights.last_measurement?.body_fat_pct ?? 18;
   const defaultTDEE = Math.round(currentWeight * 35);
@@ -297,7 +304,7 @@ function ForwardSim({ data }: { data: ApiData }) {
   const [tdee, setTdee] = useState(defaultTDEE);
   const [weeks, setWeeks] = useState(8);
 
-  const KCAL_PER_KG = 7700;            // textbook value for body mass change
+  const KCAL_PER_KG = 7700;
   const dailyDeficit = kcal - tdee;
   const predictedDailyRate = dailyDeficit / KCAL_PER_KG;
   const totalDays = weeks * 7;
@@ -306,8 +313,6 @@ function ForwardSim({ data }: { data: ApiData }) {
 
   const currentLean = currentWeight * (1 - currentBFRaw / 100);
   const proteinPerKg = protein / currentWeight;
-  // Higher protein protects lean mass during a deficit.
-  // 1.6 g/kg → 60% of loss from fat; 2.5 g/kg → 85% from fat (linear interp).
   const fatLossRatio = Math.min(0.85, 0.6 + (proteinPerKg - 1.0) * 0.18);
   const leanLossRatio = 1 - fatLossRatio;
   const fatLoss = totalLoss * fatLossRatio;
@@ -315,6 +320,23 @@ function ForwardSim({ data }: { data: ApiData }) {
   const predictedFatKg = (currentWeight * currentBFRaw / 100) + fatLoss;
   const predictedLeanKg = currentLean + leanLoss;
   const predictedBF = (predictedFatKg / predictedWeight) * 100;
+
+  return {
+    currentWeight, currentBFRaw,
+    kcal, setKcal, protein, setProtein, tdee, setTdee, weeks, setWeeks,
+    dailyDeficit,
+    predictedWeight, predictedBF, predictedLeanKg, predictedFatKg,
+    totalLoss, fatLoss, leanLoss, fatLossRatio,
+  };
+}
+
+function ForwardSim({ state }: { state: ForwardSimState }) {
+  const {
+    currentWeight, currentBFRaw,
+    kcal, setKcal, protein, setProtein, tdee, setTdee, weeks, setWeeks,
+    predictedWeight, predictedBF, predictedLeanKg,
+    totalLoss, fatLoss, leanLoss, fatLossRatio,
+  } = state;
 
   return (
     <div className="space-y-4">
@@ -376,6 +398,179 @@ function ForwardSim({ data }: { data: ApiData }) {
         <strong className="text-amber-400/70 ml-1">Rough estimate only. Calibrate TDEE against your own logged data over a few weeks.</strong>
       </div>
     </div>
+  );
+}
+
+// ─── 3D body simulator ──────────────────────────────────────────────────────
+
+function skinfoldsFromEntry(entry: ApiData['insights']['last_measurement']):
+  Skinfolds | undefined {
+  if (!entry) return undefined;
+  const sites: (keyof Skinfolds)[] = [
+    'chest', 'abdominal', 'thigh', 'tricep',
+    'subscapular', 'suprailiac', 'midaxillary',
+  ];
+  const sf: Partial<Skinfolds> = {};
+  for (const s of sites) {
+    const mm = (entry as unknown as Record<string, number | null>)[`${s}_mm`];
+    if (mm == null) return undefined;
+    sf[s] = mm;
+  }
+  return sf as Skinfolds;
+}
+
+function SexToggle({ value, onChange }: { value: Sex; onChange: (s: Sex) => void }) {
+  const btn = (s: Sex, label: string) => (
+    <button
+      onClick={() => onChange(s)}
+      className={
+        'px-3 py-1 text-xs rounded transition ' +
+        (value === s
+          ? 'bg-white/15 text-white'
+          : 'text-white/40 hover:text-white/70')
+      }
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex items-center gap-1 bg-white/5 rounded p-0.5">
+      {btn('m', 'Male')}
+      {btn('f', 'Female')}
+    </div>
+  );
+}
+
+function BodySimCard({ data, sim }: { data: ApiData; sim: ForwardSimState }) {
+  const last = data.insights.last_measurement;
+  const [sex, setSex] = useState<Sex>(() => {
+    if (typeof window === 'undefined') return 'm';
+    return (window.localStorage.getItem('biohub.bodysim.sex') as Sex) || 'm';
+  });
+  const [showCompare, setShowCompare] = useState(true);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('biohub.bodysim.sex', sex);
+    }
+  }, [sex]);
+
+  if (!last) {
+    return (
+      <GlassCard>
+        <CardHeader title="3D body composition" icon={<User className="w-4 h-4" />} />
+        <div className="p-4 pt-2 text-sm text-white/60">
+          Log a body-composition entry to see the 3D model.
+        </div>
+      </GlassCard>
+    );
+  }
+
+  const weight = last.weight_kg ?? data.insights.weight_current ?? 75;
+  const bf = last.body_fat_pct ?? 18;
+  const skinfolds = skinfoldsFromEntry(last);
+  const heightM = 1.75;  // TODO: read from user profile once we have one
+  const captionMethod = last.method ?? 'manual';
+  const captionDate = last.date;
+
+  // Scale the user's actual skinfolds to a "goal" projection by the same
+  // BF% ratio as predictedBF/currentBF. This is a rough proxy — the
+  // regional distribution of the projection stays proportional to the
+  // user's current distribution, which is the best we can do without
+  // a richer simulator that models per-site fat loss differently.
+  const projectionScale = bf > 0 ? sim.predictedBF / bf : 1;
+  const goalSkinfolds: Skinfolds | undefined = skinfolds
+    ? {
+        chest:       skinfolds.chest       * projectionScale,
+        abdominal:   skinfolds.abdominal   * projectionScale,
+        thigh:       skinfolds.thigh       * projectionScale,
+        tricep:      skinfolds.tricep      * projectionScale,
+        subscapular: skinfolds.subscapular * projectionScale,
+        suprailiac:  skinfolds.suprailiac  * projectionScale,
+        midaxillary: skinfolds.midaxillary * projectionScale,
+      }
+    : undefined;
+
+  const projection = {
+    weightKg: sim.predictedWeight,
+    bfPct: sim.predictedBF,
+    skinfolds: goalSkinfolds,
+  };
+
+  // Only show compare-mode when the projection meaningfully differs.
+  const projectionDiffers = Math.abs(sim.totalLoss) > 0.3;
+  const compareWith = (showCompare && projectionDiffers) ? projection : undefined;
+
+  return (
+    <GlassCard>
+      <CardHeader
+        title="3D body composition"
+        icon={<User className="w-4 h-4" />}
+        badge={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCompare(s => !s)}
+              disabled={!projectionDiffers}
+              className={
+                'px-3 py-1 text-xs rounded transition ' +
+                (showCompare && projectionDiffers
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'bg-white/5 text-white/40 hover:text-white/70 disabled:opacity-40 disabled:cursor-not-allowed')
+              }
+              title={projectionDiffers
+                ? 'Toggle current-vs-projected side-by-side view'
+                : 'Adjust the forward simulator below to see a projection'}
+            >
+              Compare
+            </button>
+            <SexToggle value={sex} onChange={setSex} />
+          </div>
+        }
+      />
+      <div className="p-4 pt-2 space-y-2">
+        <BodyModel3D
+          weightKg={weight}
+          bfPct={bf}
+          heightM={heightM}
+          sex={sex}
+          skinfolds={skinfolds}
+          compareWith={compareWith}
+          height={480}
+        />
+        <p className="text-xs text-white/40">
+          {compareWith ? (
+            <>
+              <span className="text-sky-300">Current</span> {weight.toFixed(1)} kg, {bf.toFixed(1)}% BF
+              {' · '}
+              <span className="text-emerald-300">Projected</span> {sim.predictedWeight.toFixed(1)} kg, {sim.predictedBF.toFixed(1)}% BF after {sim.weeks} weeks at {sim.dailyDeficit > 0 ? '+' : ''}{sim.dailyDeficit} kcal/day
+            </>
+          ) : (
+            <>
+              Current — {weight.toFixed(1)} kg, {bf.toFixed(1)}% BF from {captionDate} ({captionMethod})
+              {skinfolds
+                ? ' · regional shape driven by 7-site caliper'
+                : ' · uniform-distribution fallback (no caliper data)'}
+            </>
+          )}
+        </p>
+      </div>
+    </GlassCard>
+  );
+}
+
+// Combo: 3D body sim + forward sim share one useForwardSim instance so the
+// 3D viewport's "compare" mode sees the exact projection the sliders compute.
+function BodySimWithSim({ data }: { data: ApiData }) {
+  const sim = useForwardSim(data);
+  return (
+    <>
+      <BodySimCard data={data} sim={sim} />
+      <GlassCard>
+        <CardHeader title="Forward simulator (diet → body composition)" icon={<Calculator className="w-4 h-4" />} />
+        <div className="p-4 pt-2">
+          <ForwardSim state={sim} />
+        </div>
+      </GlassCard>
+    </>
   );
 }
 
@@ -538,13 +733,8 @@ export function BodyCompositionTab() {
         </div>
       </GlassCard>
 
-      {/* Forward simulator */}
-      <GlassCard>
-        <CardHeader title="Forward simulator (diet → body composition)" icon={<Calculator className="w-4 h-4" />} />
-        <div className="p-4 pt-2">
-          <ForwardSim data={data} />
-        </div>
-      </GlassCard>
+      {/* 3D body simulator + Forward sim — share state via useForwardSim */}
+      <BodySimWithSim data={data} />
 
       <p className="text-xs text-white/30 text-center pt-2">
         Last update: {new Date(data.computed_at).toLocaleString()}
