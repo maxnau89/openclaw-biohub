@@ -1,0 +1,138 @@
+<!doctype html><meta charset="utf-8"><title>biohub body-sim gallery</title>
+<style>
+body{font:14px/1.4 system-ui;background:#0b0f14;color:#e3e7ec;padding:24px;margin:0}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#8b94a3;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px}
+.card{background:#11161d;border:1px solid #1f2731;border-radius:8px;padding:12px}
+.card img{width:100%;height:auto;border-radius:6px;background:#000}
+.card h3{margin:8px 0 2px;font-size:14px;font-family:monospace}
+.note{color:#8b94a3;font-size:12px;margin:0 0 4px}
+.meta{color:#54647a;font-size:11px;margin:0 0 8px;font-family:monospace}
+textarea{width:100%;min-height:60px;background:#0b0f14;color:#e3e7ec;border:1px solid #1f2731;border-radius:4px;padding:8px;font:13px/1.4 system-ui;resize:vertical;box-sizing:border-box}
+.toolbar{position:sticky;top:0;background:#0b0f14;padding:8px 0 16px;display:flex;gap:8px;align-items:center;z-index:10;margin-bottom:16px;border-bottom:1px solid #1f2731}
+button{background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+button.alt{background:#1f2731}
+pre{background:#000;color:#9aa5b6;padding:12px;border-radius:4px;overflow:auto;font:12px/1.4 monospace}
+.legend{margin:0 0 8px;color:#8b94a3;font-size:13px}
+</style>
+<h1>biohub v0.4 body-sim — visual review</h1>
+<p class="lead">Each tile is a body-comp profile rendered by the dashboard. Notes save to localStorage. Hit “Export notes” to copy a markdown summary.</p>
+<div class="toolbar">
+  <button id="export">Export notes</button>
+  <button id="clear" class="alt">Clear all</button>
+  <span class="legend">11 cases · stored at <code>localStorage['biohub-gallery-notes']</code></span>
+</div>
+<pre id="out" hidden></pre>
+<div class="grid">
+  <div class="card">
+    <img src="m-lean-low-muscle.png" alt="m-lean-low-muscle" loading="lazy" />
+    <h3>m-lean-low-muscle</h3>
+    <p class="note">FFMI 19 — slim build, low LBM</p>
+    <p class="meta">Male · 66 kg · 12 % BF · FFMI 19.0</p>
+    <textarea data-key="m-lean-low-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="m-lean-mid-muscle.png" alt="m-lean-mid-muscle" loading="lazy" />
+    <h3>m-lean-mid-muscle</h3>
+    <p class="note">FFMI 22 — average lean build</p>
+    <p class="meta">Male · 75 kg · 12 % BF · FFMI 21.6</p>
+    <textarea data-key="m-lean-mid-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="m-lean-high-muscle.png" alt="m-lean-high-muscle" loading="lazy" />
+    <h3>m-lean-high-muscle</h3>
+    <p class="note">FFMI 26 — muscular lean</p>
+    <p class="meta">Male · 92 kg · 12 % BF · FFMI 26.4</p>
+    <textarea data-key="m-lean-high-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="m-soft-low-bf.png" alt="m-soft-low-bf" loading="lazy" />
+    <h3>m-soft-low-bf</h3>
+    <p class="note">10 % BF, average muscle</p>
+    <p class="meta">Male · 75 kg · 10 % BF · FFMI 22.0</p>
+    <textarea data-key="m-soft-low-bf" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="m-soft-mid-bf.png" alt="m-soft-mid-bf" loading="lazy" />
+    <h3>m-soft-mid-bf</h3>
+    <p class="note">18 % BF, average muscle</p>
+    <p class="meta">Male · 75 kg · 18 % BF · FFMI 20.1</p>
+    <textarea data-key="m-soft-mid-bf" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="m-soft-high-bf.png" alt="m-soft-high-bf" loading="lazy" />
+    <h3>m-soft-high-bf</h3>
+    <p class="note">32 % BF, average muscle (heavy)</p>
+    <p class="meta">Male · 75 kg · 32 % BF · FFMI 16.7</p>
+    <textarea data-key="m-soft-high-bf" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="f-lean-low-muscle.png" alt="f-lean-low-muscle" loading="lazy" />
+    <h3>f-lean-low-muscle</h3>
+    <p class="note">female FFMI 16</p>
+    <p class="meta">Female · 55 kg · 22 % BF · FFMI 15.8</p>
+    <textarea data-key="f-lean-low-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="f-lean-mid-muscle.png" alt="f-lean-mid-muscle" loading="lazy" />
+    <h3>f-lean-mid-muscle</h3>
+    <p class="note">female FFMI 18</p>
+    <p class="meta">Female · 62 kg · 22 % BF · FFMI 17.8</p>
+    <textarea data-key="f-lean-mid-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="f-lean-high-muscle.png" alt="f-lean-high-muscle" loading="lazy" />
+    <h3>f-lean-high-muscle</h3>
+    <p class="note">female FFMI 21 — fit athlete</p>
+    <p class="meta">Female · 75 kg · 22 % BF · FFMI 21.5</p>
+    <textarea data-key="f-lean-high-muscle" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="f-soft-low-bf.png" alt="f-soft-low-bf" loading="lazy" />
+    <h3>f-soft-low-bf</h3>
+    <p class="note">female 16 % BF</p>
+    <p class="meta">Female · 62 kg · 16 % BF · FFMI 19.1</p>
+    <textarea data-key="f-soft-low-bf" placeholder="Your notes here…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="f-soft-high-bf.png" alt="f-soft-high-bf" loading="lazy" />
+    <h3>f-soft-high-bf</h3>
+    <p class="note">female 32 % BF</p>
+    <p class="meta">Female · 65 kg · 32 % BF · FFMI 16.2</p>
+    <textarea data-key="f-soft-high-bf" placeholder="Your notes here…"></textarea>
+  </div></div>
+<script>
+const KEY = 'biohub-gallery-notes';
+const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+for (const t of document.querySelectorAll('textarea')) {
+  const k = t.dataset.key;
+  if (saved[k]) t.value = saved[k];
+  t.addEventListener('input', () => {
+    saved[k] = t.value;
+    localStorage.setItem(KEY, JSON.stringify(saved));
+  });
+}
+document.getElementById('export').onclick = () => {
+  const md = Object.entries(saved).map(([k, v]) => v.trim() ? '### ' + k + '\n' + v : '').filter(Boolean).join('\n\n');
+  const out = document.getElementById('out');
+  out.textContent = md || '(no notes yet)';
+  out.hidden = false;
+};
+document.getElementById('clear').onclick = () => {
+  if (confirm('Clear all notes?')) {
+    localStorage.removeItem(KEY);
+    location.reload();
+  }
+};
+</script>
