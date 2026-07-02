@@ -447,12 +447,22 @@ function BodySimCard({ data, sim }: { data: ApiData; sim: ForwardSimState }) {
     if (typeof window === 'undefined') return 'm';
     return (window.localStorage.getItem('biohub.bodysim.sex') as Sex) || 'm';
   });
+  const [heightCm, setHeightCm] = useState<number>(() => {
+    if (typeof window === 'undefined') return 175;
+    const stored = Number(window.localStorage.getItem('biohub.bodysim.heightCm'));
+    return Number.isFinite(stored) && stored >= 120 && stored <= 230 ? stored : 175;
+  });
   const [showCompare, setShowCompare] = useState(true);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('biohub.bodysim.sex', sex);
     }
   }, [sex]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('biohub.bodysim.heightCm', String(heightCm));
+    }
+  }, [heightCm]);
 
   if (!last) {
     return (
@@ -468,7 +478,7 @@ function BodySimCard({ data, sim }: { data: ApiData; sim: ForwardSimState }) {
   const weight = last.weight_kg ?? data.insights.weight_current ?? 75;
   const bf = last.body_fat_pct ?? 18;
   const skinfolds = skinfoldsFromEntry(last);
-  const heightM = 1.75;  // TODO: read from user profile once we have one
+  const heightM = heightCm / 100;
   const captionMethod = last.method ?? 'manual';
   const captionDate = last.date;
 
@@ -507,6 +517,20 @@ function BodySimCard({ data, sim }: { data: ApiData; sim: ForwardSimState }) {
         icon={<User className="w-4 h-4" />}
         badge={
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs text-white/50">
+              Height
+              <input
+                type="number"
+                min={120}
+                max={230}
+                step={1}
+                value={heightCm}
+                onChange={e => setHeightCm(+e.target.value)}
+                className="w-14 bg-white/5 text-white text-xs rounded px-1.5 py-0.5 border border-white/10 focus:outline-none focus:border-sky-400"
+                title="Height in cm — drives FFMI and the 3D body proportions"
+              />
+              <span className="text-white/40">cm</span>
+            </label>
             <button
               onClick={() => setShowCompare(s => !s)}
               disabled={!projectionDiffers}

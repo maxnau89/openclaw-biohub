@@ -45,49 +45,127 @@ const GOAL_COLOR = 0x86d6a8;
 const SKIN_EMISSIVE = 0x2a0c08;
 const GOAL_EMISSIVE = 0x0c2a18;
 
-// ─── MakeHuman macro morph baseline + spans ──────────────────────────────────
+// ─── MakeHuman macro grid: bilinear composition + physiological anchors ─────
 //
 // The baked GLBs are at the canonical "average muscle, average weight" point
-// of MakeHuman's macro grid. The four morph targets (muscle_high, muscle_low,
-// weight_high, weight_low) move the body toward each grid extreme when their
-// influence is 1.0. We compute influences live from the user's FFMI + BF %:
+// of MakeHuman's macro grid and carry all 8 non-center grid points as morph
+// targets: the 4 axis extremes (muscle_high/low, weight_high/low) AND the 4
+// corners (muscle_high_weight_high, …). The corners matter: MakeHuman
+// composes macros by bilinear interpolation over the grid, and a corner
+// shape is NOT the sum of its two axis extremes (measured error: 60–138 %
+// of the deformation magnitude — the source of the surface rippling we saw
+// when muscle_high + weight_high were simply added for strongly-modified
+// bodies).
 //
-//   muscle_high = clamp01((userFFMI − baselineFFMI) / FFMI_SPAN)
-//   weight_high = clamp01((userBF   − baselineBF)   / BF_SPAN)
-//   …and the _low variants for the opposite direction.
+// Runtime composition mirrors MakeHuman exactly: normalize the user's FFMI
+// to a muscle coordinate m ∈ [−1, 1] and BF % to a weight coordinate
+// w ∈ [−1, 1], build per-axis hat weights, and weight each grid morph with
+// the product of its axis hats. The hat products always sum to ≤ 1 per
+// morph, so no morph ever extrapolates beyond its baked shape — full
+// differentiation across the grid without caps.
 //
-// FFMI_SPAN: 2.5 FFMI points reaches full max-muscle influence.
-//   The macro target itself is a "well-developed but realistic" build, not
-//   a competition bodybuilder — saturating early ensures a user at FFMI 23
-//   (typical intermediate lifter) sees the morph at full effect instead
-//   of being interpolated halfway.
-// BF_SPAN:   7 BF % points to full influence.
-const BASELINE_FFMI: Record<Sex, number> = { m: 21.0, f: 18.5 };
-const BASELINE_BF:   Record<Sex, number> = { m: 15,   f: 22 };
-const FFMI_SPAN = 2.5;
-const BF_SPAN = 7.0;
+// Anchors map measured inputs onto the grid so the mannequin stays true to
+// the data ([min → −1, avg → 0, max → +1], piecewise linear, clamped):
+//   - Male FFMI  16 / 20 / 25 — untrained-low, population average, natural
+//     bodybuilder ceiling (FFMI ≈ 25, Kouri et al. 1995).
+//   - Female FFMI 13 / 16.5 / 21 — same landmarks for women.
+//   - Male BF %   5 / 15 / 32 — contest-lean, average-fit, obese class I
+//     (≈ what MakeHuman's maxweight shape depicts).
+//   - Female BF % 12 / 22 / 38 — essential-fat floor, average, obese.
+const MUSCLE_ANCHORS: Record<Sex, [number, number, number]> = {
+  m: [16, 20, 25],
+  f: [13, 16.5, 21],
+};
+const BF_ANCHORS: Record<Sex, [number, number, number]> = {
+  m: [5, 15, 32],
+  f: [12, 22, 38],
+};
 
-function clamp01(x: number) { return Math.max(0, Math.min(1, x)); }
+// Belly-overhang threshold: real anterior abdominal mass kicks in around
+// 22 % BF for men, 30 % BF for women. Ramped over 15 BF points; capped at
+// 1.3 — mild extrapolation of the (smooth, localized) stomach target is
+// safe, and the weight axis now carries most of the mass gain anyway.
+const BELLY_THRESHOLD: Record<Sex, number> = { m: 22, f: 30 };
+const BELLY_RANGE = 15;
+const BELLY_CAP = 1.3;
+
+// Visible-muscularity gate. FFMI is mechanically inflated at high fat mass
+// (extra blood volume, organ + connective-tissue scaling, non-contractile
+// lean mass), so a morbidly-obese person reads as high-FFMI without any
+// shredded-delt look. We attenuate ONLY the muscle_high (positive) side by a
+// leanness factor: full definition when lean, fading to average muscle tone
+// as BF approaches the obese range — the weight axis then carries the mass so
+// the body reads as fat, not Hulk. The muscle_low side is untouched (a soft,
+// untrained body stays soft regardless of fat). MUSCLE_VIS_BF is the BF % at
+// which gross muscularity is fully hidden; ramped over MUSCLE_VIS_RANGE below
+// it. Tuned so a 22 %-BF strongman keeps full muscle while a 42 %-BF obese
+// body drops to average tone.
+const MUSCLE_VIS_BF: Record<Sex, number> = { m: 40, f: 45 };
+const MUSCLE_VIS_RANGE = 15;
+
+function clamp(x: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, x));
+}
+
+/** Piecewise-linear map of a measurement onto a grid axis coordinate:
+ *  lo → −1, mid → 0, hi → +1, clamped to [−1, 1]. */
+function axisCoord(x: number, [lo, mid, hi]: [number, number, number]): number {
+  if (x >= mid) return clamp((x - mid) / (hi - mid), 0, 1);
+  return -clamp((mid - x) / (mid - lo), 0, 1);
+}
 
 function computeMorphInfluences(
   weightKg: number, bfPct: number, heightM: number, sex: Sex,
 ): Record<string, number> {
   const LBM = weightKg * (1 - bfPct / 100);
   const ffmi = LBM / (heightM * heightM);
-  const dFfmi = ffmi - BASELINE_FFMI[sex];
-  const dBf = bfPct - BASELINE_BF[sex];
+  const rawM = axisCoord(ffmi, MUSCLE_ANCHORS[sex]);
+  const w = axisCoord(bfPct, BF_ANCHORS[sex]);
+  // Attenuate visible muscularity by leanness — only the positive side, so
+  // fat is carried by the weight axis instead of reading as huge shoulders.
+  const muscleVis = clamp((MUSCLE_VIS_BF[sex] - bfPct) / MUSCLE_VIS_RANGE, 0, 1);
+  const m = rawM > 0 ? rawM * muscleVis : rawM;
+
+  // Per-axis hat weights over {min, avg, max}. At m = +0.6 the muscle axis
+  // is 60 % max / 40 % avg; the avg column needs no morph (it's the base
+  // mesh), so only the max/min hats appear below.
+  const mHi = Math.max(0, m);
+  const mLo = Math.max(0, -m);
+  const wHi = Math.max(0, w);
+  const wLo = Math.max(0, -w);
+  const mAvg = 1 - Math.abs(m);
+  const wAvg = 1 - Math.abs(w);
+
+  // Belly morph composition:
+  //   - belly_high (anterior abdominal mass / "overhang") only engages
+  //     once BF crosses the threshold where real overhang appears in
+  //     human bodies (~22 % male, ~30 % female): a "skinny-fat" male at
+  //     28 % gets mild overhang (0.4) while morbid obesity at 42 % gets
+  //     strong overhang (1.3, capped).
+  //   - belly_low (abs / muscle relief) needs BOTH low BF AND high muscle
+  //     to read — gated multiplicatively so a thin-but-untrained user
+  //     doesn't get unearned abs.
+  const bellyHigh = clamp((bfPct - BELLY_THRESHOLD[sex]) / BELLY_RANGE, 0, BELLY_CAP);
+  const bellyLow = Math.min(mHi, wLo * 1.5);
+
   const inf: Record<string, number> = {
-    muscle_high: clamp01( dFfmi / FFMI_SPAN),
-    muscle_low:  clamp01(-dFfmi / FFMI_SPAN),
-    weight_high: clamp01( dBf / BF_SPAN),
-    weight_low:  clamp01(-dBf / BF_SPAN),
+    muscle_high: mHi * wAvg,
+    muscle_low:  mLo * wAvg,
+    weight_high: mAvg * wHi,
+    weight_low:  mAvg * wLo,
+    muscle_high_weight_high: mHi * wHi,
+    muscle_high_weight_low:  mHi * wLo,
+    muscle_low_weight_high:  mLo * wHi,
+    muscle_low_weight_low:   mLo * wLo,
+    belly_high:  bellyHigh,
+    belly_low:   bellyLow,
   };
-  // Female-only chest tissue: scales 1:1 with the BF % delta. MakeHuman's
+  // Female-only chest tissue: driven by the weight coordinate. MakeHuman's
   // weight macro barely touches breast geometry, so we drive a dedicated
   // breast morph in parallel from the same signal.
   if (sex === 'f') {
-    inf.breast_high = clamp01( dBf / BF_SPAN);
-    inf.breast_low  = clamp01(-dBf / BF_SPAN);
+    inf.breast_high = wHi;
+    inf.breast_low  = wLo;
   }
   return inf;
 }
@@ -279,6 +357,14 @@ export function BodyModel3D({
       async function rerender(p: BodyModel3DProps) {
         await ensureBodies(p.sex);
         if (!currentBody || !goalBody || !currentDeformer || !goalDeformer) return;
+
+        // Scale the mesh proportionally to the user's height. The baked GLB
+        // is 1.75 m; this stretches/shrinks uniformly so a 2.05 m user gets
+        // a visibly taller silhouette. Goal body uses the same height since
+        // a cut/bulk doesn't change skeletal proportions.
+        const scale = p.heightM / 1.75;
+        currentBody.scale.setScalar(scale);
+        goalBody.scale.setScalar(scale);
 
         // Step 1: broad muscle/weight macros via GLB morph targets.
         // Step 2: fine regional shape via MeshDeformer (caliper-driven).

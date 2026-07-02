@@ -1,0 +1,170 @@
+<!doctype html><meta charset="utf-8"><title>biohub v0.4 — edge cases</title>
+<style>
+body{font:14px/1.4 system-ui;background:#0b0f14;color:#e3e7ec;padding:24px;margin:0}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#8b94a3;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px}
+.card{background:#11161d;border:1px solid #1f2731;border-radius:8px;padding:12px}
+.card img{width:100%;height:auto;border-radius:6px;background:#000}
+.card h3{margin:8px 0 2px;font-size:14px;font-family:monospace;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:normal}
+.tag.green{background:#0f3b22;color:#7ed3a3}
+.tag.amber{background:#3b2f0f;color:#e6c477}
+.note{color:#8b94a3;font-size:12px;margin:0 0 4px}
+.meta{color:#54647a;font-size:11px;margin:0 0 8px;font-family:monospace}
+textarea{width:100%;min-height:60px;background:#0b0f14;color:#e3e7ec;border:1px solid #1f2731;border-radius:4px;padding:8px;font:13px/1.4 system-ui;resize:vertical;box-sizing:border-box}
+.toolbar{position:sticky;top:0;background:#0b0f14;padding:8px 0 16px;display:flex;gap:8px;align-items:center;z-index:10;margin-bottom:16px;border-bottom:1px solid #1f2731}
+button{background:#2563eb;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+button.alt{background:#1f2731}
+pre{background:#000;color:#9aa5b6;padding:12px;border-radius:4px;overflow:auto;font:12px/1.4 monospace;max-height:300px}
+.legend{margin:0 0 8px;color:#8b94a3;font-size:13px}
+</style>
+<h1>biohub v0.4 — edge-case stress test</h1>
+<p class="lead">15 body-composition profiles spanning extremes, sex-specific cases, missing data, and geometric outliers. Note any tile that looks wrong; "OK" / "broken: …" / blank=skip all fine. Export → paste back.</p>
+<div class="toolbar">
+  <button id="export">Export notes</button>
+  <button id="clear" class="alt">Clear all</button>
+  <span class="legend">15 cases · <span class="tag green">caliper</span>=full skinfolds · <span class="tag amber">no caliper</span>=uniform BF fallback</span>
+</div>
+<pre id="out" hidden></pre>
+<div class="grid">
+  <div class="card">
+    <img src="A1-bodybuilder.png" alt="A1-bodybuilder" loading="lazy" />
+    <h3>A1-bodybuilder <span class="tag green">caliper</span></h3>
+    <p class="note">Competition bodybuilder — 5 % BF, FFMI 27.9 (very high muscle, very low fat)</p>
+    <p class="meta">Male · 90 kg · 5 % BF · FFMI 27.9</p>
+    <textarea data-key="A1-bodybuilder" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="A2-strongman.png" alt="A2-strongman" loading="lazy" />
+    <h3>A2-strongman <span class="tag green">caliper</span></h3>
+    <p class="note">Strongman / sumo — 130 kg @ 22 % BF, FFMI 33.1 (high mass on all axes)</p>
+    <p class="meta">Male · 130 kg · 22 % BF · FFMI 33.1</p>
+    <textarea data-key="A2-strongman" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="A3-skinny-fat.png" alt="A3-skinny-fat" loading="lazy" />
+    <h3>A3-skinny-fat <span class="tag green">caliper</span></h3>
+    <p class="note">Skinny-fat — average weight, high BF, FFMI 17.6 (low LBM)</p>
+    <p class="meta">Male · 75 kg · 28 % BF · FFMI 17.6</p>
+    <textarea data-key="A3-skinny-fat" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="A4-morbidly-obese.png" alt="A4-morbidly-obese" loading="lazy" />
+    <h3>A4-morbidly-obese <span class="tag green">caliper</span></h3>
+    <p class="note">Morbid obesity — 150 kg @ 42 % BF, FFMI 28.4 (most fat, decent LBM)</p>
+    <p class="meta">Male · 150 kg · 42 % BF · FFMI 28.4</p>
+    <textarea data-key="A4-morbidly-obese" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="A5-sarcopenic.png" alt="A5-sarcopenic" loading="lazy" />
+    <h3>A5-sarcopenic <span class="tag green">caliper</span></h3>
+    <p class="note">Sarcopenic elderly — 55 kg @ 28 % BF, FFMI 12.9 (very low everything)</p>
+    <p class="meta">Male · 55 kg · 28 % BF · FFMI 12.9</p>
+    <textarea data-key="A5-sarcopenic" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="B1-female-bodybuilder.png" alt="B1-female-bodybuilder" loading="lazy" />
+    <h3>B1-female-bodybuilder <span class="tag green">caliper</span></h3>
+    <p class="note">Female bodybuilder — 12 % BF, FFMI 19.5 (lean + muscular)</p>
+    <p class="meta">Female · 60 kg · 12 % BF · FFMI 19.4</p>
+    <textarea data-key="B1-female-bodybuilder" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="B2-slim-model.png" alt="B2-slim-model" loading="lazy" />
+    <h3>B2-slim-model <span class="tag green">caliper</span></h3>
+    <p class="note">Slim model — 55 kg @ 18 % BF, FFMI 16.6 (low chest tissue)</p>
+    <p class="meta">Female · 55 kg · 18 % BF · FFMI 16.6</p>
+    <textarea data-key="B2-slim-model" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="B3-curvy-heavy.png" alt="B3-curvy-heavy" loading="lazy" />
+    <h3>B3-curvy-heavy <span class="tag green">caliper</span></h3>
+    <p class="note">Curvy heavy — 90 kg @ 38 % BF (hip + breast morph should show)</p>
+    <p class="meta">Female · 90 kg · 38 % BF · FFMI 20.5</p>
+    <textarea data-key="B3-curvy-heavy" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="C1-no-skinfolds.png" alt="C1-no-skinfolds" loading="lazy" />
+    <h3>C1-no-skinfolds <span class="tag amber">no caliper</span></h3>
+    <p class="note">No caliper data — method="scale", uniform BF-driven fallback</p>
+    <p class="meta">Male · 82 kg · 18 % BF · FFMI 22.0</p>
+    <textarea data-key="C1-no-skinfolds" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="C2-extreme-apple.png" alt="C2-extreme-apple" loading="lazy" />
+    <h3>C2-extreme-apple <span class="tag green">caliper</span></h3>
+    <p class="note">Extreme apple — heavy visceral (abd 42, sl 36), lean limbs (thigh 8)</p>
+    <p class="meta">Male · 85 kg · 22 % BF · FFMI 21.6</p>
+    <textarea data-key="C2-extreme-apple" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="C3-extreme-pear.png" alt="C3-extreme-pear" loading="lazy" />
+    <h3>C3-extreme-pear <span class="tag green">caliper</span></h3>
+    <p class="note">Extreme pear — lean trunk, huge thigh (40) + suprailiac (32)</p>
+    <p class="meta">Female · 78 kg · 28 % BF · FFMI 20.6</p>
+    <textarea data-key="C3-extreme-pear" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="D1-very-tall.png" alt="D1-very-tall" loading="lazy" />
+    <h3>D1-very-tall <span class="tag green">caliper</span></h3>
+    <p class="note">Very tall — 95 kg @ 2.05 m → FFMI 19.3 (mesh scaled to height)</p>
+    <p class="meta">Male · 95 kg · 15 % BF · FFMI 19.2 · 2.05 m</p>
+    <textarea data-key="D1-very-tall" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="D2-very-short.png" alt="D2-very-short" loading="lazy" />
+    <h3>D2-very-short <span class="tag green">caliper</span></h3>
+    <p class="note">Very short — 48 kg @ 1.50 m → FFMI 16.6 (mesh scaled to height)</p>
+    <p class="meta">Female · 48 kg · 22 % BF · FFMI 16.6 · 1.5 m</p>
+    <textarea data-key="D2-very-short" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="D3-bf-zero.png" alt="D3-bf-zero" loading="lazy" />
+    <h3>D3-bf-zero <span class="tag green">caliper</span></h3>
+    <p class="note">Numeric BF=0 — pure muscle, FFMI 26.1 (impossible IRL, tests min boundary)</p>
+    <p class="meta">Male · 80 kg · 0 % BF · FFMI 26.1</p>
+    <textarea data-key="D3-bf-zero" placeholder="Pass / fail + notes…"></textarea>
+  </div>
+
+  <div class="card">
+    <img src="D4-bf-fifty.png" alt="D4-bf-fifty" loading="lazy" />
+    <h3>D4-bf-fifty <span class="tag green">caliper</span></h3>
+    <p class="note">Numeric BF=50 — half body fat, FFMI 18.4 (extreme upper boundary)</p>
+    <p class="meta">Female · 100 kg · 50 % BF · FFMI 18.4</p>
+    <textarea data-key="D4-bf-fifty" placeholder="Pass / fail + notes…"></textarea>
+  </div></div>
+<script>
+const KEY = 'biohub-edge-notes';
+const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+for (const t of document.querySelectorAll('textarea')) {
+  const k = t.dataset.key;
+  if (saved[k]) t.value = saved[k];
+  t.addEventListener('input', () => {
+    saved[k] = t.value;
+    localStorage.setItem(KEY, JSON.stringify(saved));
+  });
+}
+document.getElementById('export').onclick = () => {
+  const md = Object.entries(saved).map(([k, v]) => v.trim() ? '### ' + k + '\n' + v : '').filter(Boolean).join('\n\n');
+  const out = document.getElementById('out');
+  out.textContent = md || '(no notes yet)';
+  out.hidden = false;
+};
+document.getElementById('clear').onclick = () => {
+  if (confirm('Clear all notes?')) { localStorage.removeItem(KEY); location.reload(); }
+};
+</script>

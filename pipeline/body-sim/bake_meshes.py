@@ -14,14 +14,25 @@ The script:
   1. Imports the neutral MakeHuman base.obj (CC0), keeping only the
      `body` group (skipping the 250+ skeleton-joint helper meshes).
   2. Applies the caucasian-{sex}-young target (CC0) as the base shape.
-  3. Adds four GLB morph targets driven by FFMI and BF% at runtime:
-       - muscle_high / muscle_low — bipolar deltas from
+  3. Adds eight GLB morph targets driven by FFMI and BF% at runtime —
+     the full MakeHuman muscle×weight macro grid:
+       - muscle_high / muscle_low — axis deltas from
          `universal-{sex}-young-{max|min}muscle-averageweight`
-       - weight_high / weight_low — bipolar deltas from
+       - weight_high / weight_low — axis deltas from
          `universal-{sex}-young-averagemuscle-{max|min}weight`
+       - muscle_{high|low}_weight_{high|low} — the four CORNER deltas
+         from `universal-{sex}-young-{max|min}muscle-{max|min}weight`
      All deltas are computed relative to
      `universal-{sex}-young-averagemuscle-averageweight` so the
      base shape is the canonical center of the MakeHuman macro grid.
+
+     The corners are essential: MakeHuman composes macros by bilinear
+     interpolation over the grid, and a corner shape is NOT the sum of
+     its two axis extremes (measured error: 60–138 % of the deformation
+     magnitude — the source of surface rippling when the runtime added
+     muscle_high + weight_high for strongly-modified bodies). The
+     runtime reproduces MakeHuman's interpolation exactly by weighting
+     each grid morph with the product of per-axis hat functions.
   4. Recomputes normals + smooth-shades.
   5. Decimates to a manageable triangle count.
   6. Normalizes height to 1.75 m and uprights the mesh (Z-up in
@@ -334,19 +345,23 @@ def main() -> int:
 
     obj, new_idx = build_body_mesh(base_obj, offsets)
 
-    # ── Morph targets (muscle ± and weight ±) ────────────────────────────
-    # All 5 macro target files have the same vertex domain as base.obj. We
-    # express each "extreme" as a bipolar delta from the canonical center
-    # (avgmuscle-avgweight) so the shape key value sits at 0 at neutral
-    # and 1 at the extreme. The runtime can clamp to [-1, 1] (Three.js'
-    # morphTargetInfluences accept any float but values outside [-1, 1]
-    # extrapolate beyond the baked shape).
+    # ── Morph targets: full muscle×weight macro grid ─────────────────────
+    # All 9 macro target files have the same vertex domain as base.obj. We
+    # express each of the 8 non-center grid points as a delta from the
+    # canonical center (avgmuscle-avgweight). The runtime weights each
+    # morph with the product of per-axis hat functions (MakeHuman's own
+    # bilinear composition) — the hat weights always sum to ≤ 1, so no
+    # morph ever extrapolates beyond its baked shape.
     macro_paths = {
         'center':       data_dir / f'{args.sex}-averagemuscle-averageweight.target',
         'muscle_high':  data_dir / f'{args.sex}-maxmuscle-averageweight.target',
         'muscle_low':   data_dir / f'{args.sex}-minmuscle-averageweight.target',
         'weight_high':  data_dir / f'{args.sex}-averagemuscle-maxweight.target',
         'weight_low':   data_dir / f'{args.sex}-averagemuscle-minweight.target',
+        'muscle_high_weight_high': data_dir / f'{args.sex}-maxmuscle-maxweight.target',
+        'muscle_high_weight_low':  data_dir / f'{args.sex}-maxmuscle-minweight.target',
+        'muscle_low_weight_high':  data_dir / f'{args.sex}-minmuscle-maxweight.target',
+        'muscle_low_weight_low':   data_dir / f'{args.sex}-minmuscle-minweight.target',
     }
     macros = {}
     for name, p in macro_paths.items():
@@ -355,7 +370,11 @@ def main() -> int:
             continue
         macros[name] = parse_target_file(p)
     if 'center' in macros:
-        for pole in ('muscle_high', 'muscle_low', 'weight_high', 'weight_low'):
+        for pole in (
+            'muscle_high', 'muscle_low', 'weight_high', 'weight_low',
+            'muscle_high_weight_high', 'muscle_high_weight_low',
+            'muscle_low_weight_high', 'muscle_low_weight_low',
+        ):
             if pole not in macros:
                 continue
             delta = compute_bipolar_delta(macros[pole], macros['center'])
@@ -378,6 +397,23 @@ def main() -> int:
             # we don't subtract anything — feed them as-is.
             delta = parse_target_file(src_path)
             add_morph_target(obj, pole, delta, new_idx)
+
+    # ── Both sexes: belly morphs (anterior abdominal mass / abs tone) ──
+    # MakeHuman's `weight` macro distributes fat uniformly across the
+    # body, which doesn't produce a visible belly overhang at high BF or
+    # visible abs at low BF. These two extra morphs come from the
+    # dedicated `stomach/` target dir and add the missing relief.
+    #   belly_high <- stomach-pregnant-incr (anterior abdominal mass)
+    #   belly_low  <- stomach-tone-incr (muscle definition / 6-pack)
+    for pole, src_file in (
+        ('belly_high', 'belly-high.target'),
+        ('belly_low',  'belly-low.target'),
+    ):
+        src_path = data_dir / src_file
+        if not src_path.exists():
+            print(f'  warn: {src_file} missing; skipping {pole!r}')
+            continue
+        add_morph_target(obj, pole, parse_target_file(src_path), new_idx)
 
     smooth_shade(obj)
     # Decimation is skipped — Blender doesn't allow Decimate modifier on

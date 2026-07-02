@@ -212,8 +212,12 @@ export class MeshDeformer {
         // ≈ 0.6 mm of subcutaneous fat (rough textbook number).
         deltaMM = (params.bfPct - baseBF) * 0.6;
       }
-      // Floor: never pull more than 60 % of the baseline thickness inward.
-      const floor = -((baseSkinfolds[name] - 2) / 2) * 0.6;
+      // Floor: never pull more than 40 % of the baseline thickness inward.
+      // Lateral sites (suprailiac, midaxillary) used to allow 60 %, which
+      // exposed the iliac-crest geometry at low BF and made lean female
+      // bodies look like the hip bone was protruding. 40 % keeps the
+      // surface above the underlying skeleton.
+      const floor = -((baseSkinfolds[name] - 2) / 2) * 0.4;
       const clamped = Math.max(floor, deltaMM);
       deltaCm[li] = Math.sign(clamped) * Math.sqrt(Math.abs(clamped)) * SQRT_GAIN;
     }
