@@ -484,7 +484,7 @@ function GlucoseTab() {
       </GlassCard>
 
       <GlassCard>
-        <CardHeader title="Daily glucose" subtitle="Overnight (23:00–07:00) vs daytime mean" />
+        <CardHeader icon={<Droplets size={16} className="text-sky-400" />} title="Daily glucose" badge={<span className="text-[10px] text-white/30">overnight (23:00–07:00) vs daytime mean</span>} />
         <div className="mt-3 flex items-end gap-[2px] h-40 overflow-x-auto">
           {series.map(d => (
             <div key={d.date} className="flex flex-col justify-end items-center gap-[1px] min-w-[3px] flex-1 h-full" title={`${d.date}\nnight ${d.night_glucose_avg ?? '—'} / day ${d.day_glucose_avg ?? '—'} mg/dL`}>
@@ -553,7 +553,7 @@ function BioAgeTab() {
       </GlassCard>
 
       <GlassCard>
-        <CardHeader title="Marker contributions" subtitle="How each habit moves your biological age (negative = younger)" />
+        <CardHeader icon={<Activity size={16} className="text-emerald-400" />} title="Marker contributions" badge={<span className="text-[10px] text-white/30">negative = younger</span>} />
         <div className="space-y-2 mt-3">
           {data.contributions.map(c => {
             const neg = c.delta_years < 0;
