@@ -7,22 +7,25 @@ export const dynamic = 'force-dynamic';
 
 const SCRIPT = path.join(PIPELINE_DIR, 'glucose_analytics.py');
 
-let cache: { data: unknown; ts: number } | null = null;
+// Cache keyed by the days window — otherwise a days=90 result would be
+// served for a days=365 request and vice-versa.
+const cache = new Map<number, { data: unknown; ts: number }>();
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
 export async function GET(request: Request) {
   try {
-    const days = new URL(request.url).searchParams.get('days') || '90';
+    const days = Number(new URL(request.url).searchParams.get('days')) || 90;
     const now = Date.now();
-    if (!IS_DEV && cache && now - cache.ts < 300_000) return NextResponse.json(cache.data);
+    const hit = cache.get(days);
+    if (!IS_DEV && hit && now - hit.ts < 300_000) return NextResponse.json(hit.data);
 
-    const output = execSync(`python3 "${SCRIPT}" --days ${Number(days) || 90} 2>/dev/null`, {
+    const output = execSync(`python3 "${SCRIPT}" --days ${days} 2>/dev/null`, {
       timeout: 30000,
       encoding: 'utf-8',
     });
 
     const data = JSON.parse(output);
-    cache = { data, ts: now };
+    cache.set(days, { data, ts: now });
     return NextResponse.json(data);
   } catch (e: unknown) {
     return NextResponse.json({ overview: { readings: 0 }, daily: [], error: String(e) });
