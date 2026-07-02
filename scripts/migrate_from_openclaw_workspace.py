@@ -46,6 +46,14 @@ _WHOOP_TABLES = [
 ]
 
 
+def _db2_ddl() -> str:
+    """The whoop_raw.db section of schema.sql. Splitting on the marker leaves
+    the tail of that comment line ('whoop_raw.db (was …)') as non-comment
+    text, so drop it — the remaining lines are valid DDL / SQL comments."""
+    tail = SCHEMA.read_text().split("-- DB 2:", 1)[1]
+    return tail.split("\n", 1)[1]
+
+
 def _init(db_path: Path, ddl: str) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
@@ -58,8 +66,7 @@ def _cols(conn: sqlite3.Connection, table: str) -> list[str]:
 
 
 def migrate_whoop(src: Path) -> dict:
-    ddl = SCHEMA.read_text().split("-- DB 2:")[1]
-    conn = _init(WHOOP_DB, ddl)
+    conn = _init(WHOOP_DB, _db2_ddl())
     conn.execute("ATTACH DATABASE ? AS src", (str(src),))
     counts = {}
     for t in _WHOOP_TABLES:
