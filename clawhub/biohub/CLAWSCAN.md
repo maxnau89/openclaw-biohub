@@ -1,4 +1,4 @@
-# Clawscan note — biohub v0.4.0
+# Clawscan note — biohub v0.5.0
 
 Read-only adapter between an LLM agent and the user's local SQLite
 health DBs. **No network I/O, no credential handling, no dynamic
@@ -11,7 +11,7 @@ the agent to run is a `SELECT` against
 | Capability | Status | Note |
 |---|---|---|
 | Network access | None | All data is local SQLite. |
-| Credentials | None | OAuth tokens for adapters (WHOOP/Oura/Fitbit/Garmin) are written + refreshed by the separate `biohub` CLI — out of this skill's surface. |
+| Credentials | None | OAuth tokens for adapters (WHOOP/Oura/Fitbit/Garmin) + the Libre/Apple-Health file-watch paths are written by the separate `biohub` CLI — out of this skill's surface. |
 | Dynamic exec | None | No `eval`, `exec`, `pickle.loads`, `Function(...)`. |
 | File writes | None by the skill itself. It suggests an optional workspace-local `memory/` directory; never writes biometric data into shipped files. |
 | Shell shown | `sqlite3 "$HEALTH_DB" "SELECT ..."` only. Read-only on the user's own DB. No user input concatenated into commands. |
@@ -33,9 +33,15 @@ the agent to run is a `SELECT` against
    ("never write biometric data into public files"). The skill is the
    consumer of that guidance, not a secret-handler.
 5. **Medical / health language.** Personal-biometrics domain (HRV,
-   body fat %, blood markers). **Not medical software**; disclaimer is
-   in SKILL.md and pinned at
+   body fat %, blood markers, glucose, biological age). **Not medical
+   software**; disclaimer is in SKILL.md and pinned at
    https://github.com/maxnau89/openclaw-biohub/blob/main/DISCLAIMER.md.
+6. **A localhost HTTP listener** (`adapters.apple_health.receiver`, for
+   the Health Auto Export iOS app) exists in the backing software. It is
+   part of the `biohub` package, **not this skill** — the skill never
+   starts it, binds no port, and opens no socket. It binds 127.0.0.1 with
+   bearer-token auth by default. Same boundary as the OAuth adapters:
+   documented here, invoked only by the CLI.
 
 ## Health-data handling
 
@@ -57,7 +63,7 @@ The skill itself is a strictly local consumer.
 |---|---|
 | Repo | https://github.com/maxnau89/openclaw-biohub |
 | License | MIT (skill + backing software) |
-| Tests | 141 Python + 33 dashboard, all green |
-| Release | https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.4.0 |
+| Tests | 167 Python + 33 dashboard, all green |
+| Release | https://github.com/maxnau89/openclaw-biohub/releases/tag/v0.5.0 |
 | CI | https://github.com/maxnau89/openclaw-biohub/actions |
 | Maintainer | github.com/maxnau89 |
