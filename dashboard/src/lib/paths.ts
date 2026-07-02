@@ -24,6 +24,9 @@ export const FITBIT_DB =
 export const GARMIN_DB =
   process.env.GARMIN_DB_PATH || path.join(BIOHUB_HOME, 'data', 'garmin_raw.db');
 
+export const LIBRE_DB =
+  process.env.LIBRE_DB_PATH || path.join(BIOHUB_HOME, 'data', 'libre_raw.db');
+
 export const SECRETS_DIR =
   process.env.OPENCLAW_BIOHUB_SECRETS_DIR || path.join(BIOHUB_HOME, 'secrets');
 

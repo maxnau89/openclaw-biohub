@@ -278,28 +278,10 @@ CREATE TABLE download_log (
     error_message TEXT
 );
 
-CREATE TABLE glucose_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    device TEXT,
-    serial_number TEXT,
-    timestamp DATETIME NOT NULL,
-    record_type INTEGER,
-    glucose_mgdl REAL,
-    notes TEXT,
-    carbohydrates_g REAL,
-    source TEXT DEFAULT 'libreview',
-    imported_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(serial_number, timestamp, record_type)
-);
-
-CREATE TABLE cgm_glucose (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    device TEXT,
-    serial_number TEXT,
-    timestamp TEXT,
-    record_type INTEGER,
-    glucose_history_mgdl REAL,
-    glucose_scan_mgdl REAL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(serial_number, timestamp, record_type)
-);
+-- ============================================================
+-- DB 3: libre_raw.db  (FreeStyle Libre 3 / LibreView glucose)
+-- Owned by the Libre adapter — see pipeline/adapters/libre/schema.sql,
+-- which is the canonical DDL the adapter applies. Glucose is sub-daily
+-- and is NOT rolled into daily_metrics; the "Glucose" dashboard tab +
+-- glucose_analytics.py read libre_raw.db directly.
+-- ============================================================

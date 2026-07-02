@@ -1,6 +1,6 @@
 ---
 name: biohub
-description: Access the user's biohub — WHOOP, Oura, Fitbit, Apple Health, and Garmin biometrics (recovery, sleep, strain, HRV, SpO₂); blood-panel biomarkers; supplement stack and intake history; daily nutrition; body composition (calipers / scale / DEXA) with a 3D anatomical simulator driven by FFMI + BF % + 7-site caliper data; and user-defined tracking phases (bulks, cuts, supplement courses). Use when the user asks about their recovery score, sleep quality, HRV trends, training readiness, blood-work results, supplement effects, body composition, fat loss, what they would look like at a target body fat, or wants a health status update grounded in their own biometric data. Multi-source design — queries on `daily_metrics` are source-agnostic. Not medical advice.
+description: Access the user's biohub — WHOOP, Oura, Fitbit, Apple Health, and Garmin biometrics (recovery, sleep, strain, HRV, SpO₂); FreeStyle Libre continuous glucose (time-in-range, GMI); blood-panel biomarkers; supplement stack and intake history; daily nutrition; body composition (calipers / scale / DEXA) with a 3D anatomical simulator driven by FFMI + BF % + 7-site caliper data; a WHOOP-Age-style biological-age estimate; and user-defined tracking phases (bulks, cuts, supplement courses). Use when the user asks about their recovery score, sleep quality, HRV trends, training readiness, blood-work results, supplement effects, glucose / time-in-range, biological age, body composition, fat loss, what they would look like at a target body fat, or wants a health status update grounded in their own biometric data. Multi-source design — queries on `daily_metrics` are source-agnostic. Not medical advice.
 homepage: https://github.com/maxnau89/openclaw-biohub
 ---
 
@@ -47,9 +47,13 @@ SQLite databases under `$OPENCLAW_BIOHUB_HOME/data/`:
     `end_date IS NULL` = currently active. Categories drive default
     chip colors but are open-ended free text.
 - **Per-adapter raw DBs** — `whoop_raw.db`, `oura_raw.db`,
-  `fitbit_raw.db`, `apple_health_raw.db`, `garmin_raw.db`. Only the
-  ones the user has configured will exist (run `biohub list-adapters`
-  to see).
+  `fitbit_raw.db`, `apple_health_raw.db`, `garmin_raw.db`,
+  `libre_raw.db`. Only the ones the user has configured will exist
+  (run `biohub list-adapters` to see).
+  - `libre_raw.db.glucose_data` — FreeStyle Libre 3 / LibreView
+    continuous glucose (mg/dL) at ~15-min resolution. Sub-daily, so
+    it is NOT in `daily_metrics`; use `glucose_analytics.py` or query
+    `glucose_data` directly for time-in-range, GMI, and day/overnight means.
 
 The full schema lives in `db/schema.sql` in the openclaw-biohub repo.
 
@@ -116,13 +120,17 @@ sqlite3 "$HEALTH_DB" \
 
 ### Deeper analytics
 
-Four Python helpers in the openclaw-biohub repo's `pipeline/`
+Five Python helpers in the openclaw-biohub repo's `pipeline/`
 produce JSON output suitable for LLM consumption:
 
 - `blood_marker_analytics.py` — biomarker time series, correlations,
   category breakdowns, flagged markers.
 - `supplement_analytics.py` — partial Pearson correlations between
   supplement intake and recovery / HRV, controlling for sleep and strain.
+- `glucose_analytics.py` — CGM analytics from `libre_raw.db`: mean,
+  SD, CV %, GMI (estimated HbA1c), time-in-range / hypo / hyper, daily
+  day-vs-overnight means, and overnight-glucose ↔ next-day-recovery
+  correlation.
 - `physiological_age.py` — a WHOOP-Age-style biological-age estimate:
   scores nine markers (sleep consistency/hours, HR-zone time, strength,
   steps, VO₂max via Uth-Sørensen, resting HR, lean mass %) into a
@@ -145,8 +153,10 @@ biohub connect <slug>
 ```
 
 …where `<slug>` is one of `whoop`, `oura`, `fitbit`, `apple-health`,
-or `garmin`. `biohub list-adapters` shows all options with their
-stability tier (Garmin is `EXPERIMENTAL`).
+`garmin`, or `libre`. `biohub list-adapters` shows all options with
+their stability tier (Garmin and Libre are `EXPERIMENTAL`). Libre is
+file-based: the user exports a LibreView CSV into a watch folder and
+`biohub sync libre` ingests it.
 
 ### Logging body-composition entries and phases
 

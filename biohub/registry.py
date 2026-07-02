@@ -20,6 +20,7 @@ from adapters.apple_health.sync import AppleHealthAdapter
 from adapters.base import BiometricAdapter
 from adapters.fitbit.sync import FitbitAdapter
 from adapters.garmin.sync import GarminAdapter
+from adapters.libre.sync import LibreAdapter
 from adapters.oura.sync import OuraAdapter
 from adapters.whoop.sync import WhoopAdapter
 
@@ -31,6 +32,7 @@ _ADAPTER_CLASSES: list[Type[BiometricAdapter]] = [
     FitbitAdapter,
     AppleHealthAdapter,
     GarminAdapter,
+    LibreAdapter,
 ]
 
 ADAPTERS: dict[str, Type[BiometricAdapter]] = {

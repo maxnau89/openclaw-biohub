@@ -31,6 +31,7 @@ const tabs = [
   { id: 'workouts', label: 'Workouts' },
   { id: 'body-comp', label: 'Body Comp' },
   { id: 'bio-age', label: 'Bio Age' },
+  { id: 'glucose', label: 'Glucose' },
   { id: 'blood', label: 'Blood Work' },
   { id: 'supplements', label: 'Supplements' },
 ];
@@ -420,6 +421,89 @@ interface BioAgeData {
   needs_date_of_birth: boolean;
   note?: string;
   error?: string;
+}
+
+interface GlucoseOverview {
+  readings: number;
+  mean_mgdl?: number;
+  sd_mgdl?: number;
+  cv_pct?: number | null;
+  gmi_pct?: number;
+  time_in_range_pct?: number | null;
+  hypo_pct?: number | null;
+  hyper_pct?: number | null;
+  target_low?: number;
+  target_high?: number;
+}
+interface GlucoseDaily { date: string; night_glucose_avg: number | null; day_glucose_avg: number | null; readings: number; }
+interface GlucoseData {
+  overview: GlucoseOverview;
+  daily: GlucoseDaily[];
+  recovery_correlation?: { r: number | null; n: number; interpretation?: string };
+  error?: string;
+}
+
+function GlucoseTab() {
+  const { data, loading } = useAutoRefresh<GlucoseData>('/api/glucose?days=90', 300000);
+
+  if (loading && !data) {
+    return <GlassCard className="animate-pulse"><div className="h-24 flex items-center justify-center text-white/20 text-xs">Loading glucose…</div></GlassCard>;
+  }
+  if (!data || data.error || !data.overview || data.overview.readings === 0) {
+    return <GlassCard><p className="text-sm text-white/40">No glucose data yet — connect the FreeStyle Libre adapter (<code className="text-white/60">biohub connect libre</code>) and drop a LibreView CSV export into the watch folder.</p></GlassCard>;
+  }
+
+  const o = data.overview;
+  const series = data.daily.filter(d => d.day_glucose_avg !== null || d.night_glucose_avg !== null);
+  const maxG = Math.max(...series.flatMap(d => [d.day_glucose_avg ?? 0, d.night_glucose_avg ?? 0]), o.target_high ?? 180);
+  const corr = data.recovery_correlation;
+
+  const stat = (label: string, value: string, sub?: string, color = 'text-white/90') => (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-white/30">{label}</div>
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      {sub && <div className="text-xs text-white/40">{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <GlassCard>
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          {stat('Mean glucose', `${o.mean_mgdl} mg/dL`, `SD ${o.sd_mgdl} · CV ${o.cv_pct}%`)}
+          {stat('GMI (est. HbA1c)', `${o.gmi_pct}%`, o.gmi_pct && o.gmi_pct < 5.7 ? 'normal range' : 'elevated', (o.gmi_pct ?? 0) < 5.7 ? 'text-emerald-400' : 'text-amber-400')}
+          {stat('Time in range', `${o.time_in_range_pct}%`, `${o.target_low}–${o.target_high} mg/dL`, (o.time_in_range_pct ?? 0) >= 70 ? 'text-emerald-400' : 'text-amber-400')}
+          {stat('Low / high', `${o.hypo_pct}% / ${o.hyper_pct}%`, 'time below / above range')}
+          {stat('Readings', `${o.readings.toLocaleString()}`, 'last 90 days')}
+        </div>
+        {corr?.r !== null && corr?.r !== undefined && (
+          <p className="mt-3 text-xs text-white/40">
+            Overnight glucose ↔ next-day recovery: r = <span className="text-white/70">{corr.r}</span> ({corr.n} days). {corr.interpretation}
+          </p>
+        )}
+      </GlassCard>
+
+      <GlassCard>
+        <CardHeader title="Daily glucose" subtitle="Overnight (23:00–07:00) vs daytime mean" />
+        <div className="mt-3 flex items-end gap-[2px] h-40 overflow-x-auto">
+          {series.map(d => (
+            <div key={d.date} className="flex flex-col justify-end items-center gap-[1px] min-w-[3px] flex-1 h-full" title={`${d.date}\nnight ${d.night_glucose_avg ?? '—'} / day ${d.day_glucose_avg ?? '—'} mg/dL`}>
+              {d.day_glucose_avg !== null && (
+                <div className="w-full bg-sky-500/40" style={{ height: `${(d.day_glucose_avg / maxG) * 100}%` }} />
+              )}
+              {d.night_glucose_avg !== null && (
+                <div className="w-full bg-indigo-400/60" style={{ height: `${(d.night_glucose_avg / maxG) * 40}%` }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-4 text-[11px] text-white/40">
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 bg-sky-500/40" /> daytime mean</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 bg-indigo-400/60" /> overnight mean</span>
+        </div>
+      </GlassCard>
+    </div>
+  );
 }
 
 function BioAgeTab() {
@@ -2160,6 +2244,10 @@ function HealthContent() {
       {/* ───────── BLOOD WORK ───────── */}
       {activeTab === 'bio-age' && (
         <BioAgeTab />
+      )}
+
+      {activeTab === 'glucose' && (
+        <GlucoseTab />
       )}
 
       {activeTab === 'blood' && (

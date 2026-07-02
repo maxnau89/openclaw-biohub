@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import math
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
@@ -403,6 +404,47 @@ def generate_oura(conn: sqlite3.Connection, hconn: sqlite3.Connection) -> int:
     return rolled
 
 
+def generate_libre(conn: sqlite3.Connection) -> int:
+    """Populate libre_raw.db with ~90 days of 15-minute CGM readings.
+
+    A realistic diurnal baseline (~95 mg/dL overnight, higher post-meal spikes
+    at 08:00/13:00/19:00) plus mild day-to-day drift. Overnight glucose is
+    given a small negative coupling to a hidden 'recovery-ish' factor so the
+    glucose↔recovery correlation surfaces something in demos. Returns rows.
+    """
+    rng = random.Random(SEED + 29)
+    schema_path = ADAPTERS_DIR / "libre" / "schema.sql"
+    conn.executescript(schema_path.read_text())
+
+    start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) \
+        - timedelta(days=DAYS - 1)
+    serial = "SN-SEED-0001"
+    device = "FreeStyle Libre 3"
+    n = 0
+    for d in range(DAYS):
+        day = start + timedelta(days=d)
+        day_bias = rng.uniform(-6, 6)          # slow day-to-day drift
+        for slot in range(96):                 # every 15 min
+            t = day + timedelta(minutes=15 * slot)
+            hour = t.hour + t.minute / 60.0
+            # Diurnal baseline + post-meal Gaussian bumps.
+            g = 95 + day_bias
+            for meal_h, amp in ((8, 45), (13, 40), (19, 38)):
+                g += amp * math.exp(-((hour - meal_h) ** 2) / 1.6)
+            if hour < 6:
+                g -= 6                           # dawn trough
+            g += rng.gauss(0, 4)
+            g = max(55, min(240, g))
+            conn.execute(
+                "INSERT OR IGNORE INTO glucose_data "
+                "(device, serial_number, timestamp, record_type, glucose_mgdl, source) "
+                "VALUES (?,?,?,?,?,?)",
+                (device, serial, t.isoformat(), 0, round(g, 0), "seed"),
+            )
+            n += 1
+    return n
+
+
 def generate_body_composition_and_phases(conn: sqlite3.Connection) -> tuple[int, int]:
     """Populate `body_composition` (8 caliper entries) and `tracking_phases`
     (2 generic seed phases) in health.db. Returns (#caliper, #phases).
@@ -487,17 +529,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="openclaw-biohub fixture seeder")
     parser.add_argument(
         "--source", default="whoop",
-        choices=["whoop", "oura", "all"],
+        choices=["whoop", "oura", "libre", "all"],
         help="Which adapter(s) to seed (default: whoop)",
     )
     args = parser.parse_args()
 
-    sources = {"whoop", "oura"} if args.source == "all" else {args.source}
+    sources = {"whoop", "oura", "libre"} if args.source == "all" else {args.source}
 
     data_dir = resolve_data_dir()
     health_db_path = data_dir / "health.db"
     whoop_db_path = data_dir / "whoop_raw.db"
     oura_db_path = data_dir / "oura_raw.db"
+    libre_db_path = data_dir / "libre_raw.db"
 
     # Wipe per-source raw DBs we're about to repopulate; recreate health.db
     health_db_path.unlink(missing_ok=True)
@@ -505,6 +548,8 @@ def main() -> int:
         whoop_db_path.unlink(missing_ok=True)
     if "oura" in sources:
         oura_db_path.unlink(missing_ok=True)
+    if "libre" in sources:
+        libre_db_path.unlink(missing_ok=True)
 
     schema_text = SCHEMA_FILE.read_text()
     db1_ddl, db2_ddl = split_schema(schema_text)
@@ -539,6 +584,16 @@ def main() -> int:
                 # and rollup is an empty list.
                 generate_health(hconn, [])
 
+        # Libre (glucose) — own raw DB; not rolled into daily_metrics.
+        n_glucose = 0
+        if "libre" in sources:
+            with sqlite3.connect(libre_db_path) as lconn:
+                n_glucose = generate_libre(lconn)
+                lconn.commit()
+            # Ensure source-agnostic health tables exist if libre is standalone.
+            if "whoop" not in sources and "oura" not in sources:
+                generate_health(hconn, [])
+
         # body_composition + tracking_phases are source-agnostic — always seed
         n_caliper, n_phases = generate_body_composition_and_phases(hconn)
 
@@ -553,6 +608,8 @@ def main() -> int:
         print(f"  {whoop_db_path}")
     if "oura" in sources:
         print(f"  {oura_db_path}")
+    if "libre" in sources:
+        print(f"  {libre_db_path}  ({n_glucose} glucose readings)")
     return 0
 
 
