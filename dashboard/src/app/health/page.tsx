@@ -30,6 +30,7 @@ const tabs = [
   { id: 'sleep', label: 'Sleep' },
   { id: 'workouts', label: 'Workouts' },
   { id: 'body-comp', label: 'Body Comp' },
+  { id: 'bio-age', label: 'Bio Age' },
   { id: 'blood', label: 'Blood Work' },
   { id: 'supplements', label: 'Supplements' },
 ];
@@ -397,6 +398,108 @@ interface BloodAnalytics {
 
 type SupplementsView = 'log' | 'correlations' | 'supplements' | 'import';
 type ImportMode = 'csv' | 'url';
+
+interface BioAgeContribution {
+  key: string;
+  name: string;
+  group: string;
+  value: number;
+  delta_years: number;
+  source: string;
+}
+interface BioAgeData {
+  chronological_age: number | null;
+  physiological_age: number | null;
+  delta_years: number;
+  pace_of_aging: number;
+  contributions: BioAgeContribution[];
+  markers_scored: number;
+  markers_total: number;
+  data_completeness: number;
+  missing_markers: string[];
+  needs_date_of_birth: boolean;
+  note?: string;
+  error?: string;
+}
+
+function BioAgeTab() {
+  const { data, loading } = useAutoRefresh<BioAgeData>('/api/physiological-age', 300000);
+
+  if (loading && !data) {
+    return <GlassCard className="animate-pulse"><div className="h-24 flex items-center justify-center text-white/20 text-xs">Computing biological age…</div></GlassCard>;
+  }
+  if (!data || data.error || data.contributions.length === 0) {
+    return <GlassCard><p className="text-sm text-white/40">No biological-age data yet — needs WHOOP recovery/sleep history and (for the absolute age) a date of birth in the profile.</p></GlassCard>;
+  }
+
+  const delta = data.delta_years;
+  const younger = delta < 0;
+  const deltaColor = younger ? 'text-emerald-400' : delta > 0 ? 'text-amber-400' : 'text-white/60';
+  const maxAbs = Math.max(...data.contributions.map(c => Math.abs(c.delta_years)), 0.1);
+
+  return (
+    <div className="space-y-4">
+      <GlassCard>
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-white/30">Biological age</div>
+            <div className="text-3xl font-bold text-white/90">
+              {data.physiological_age !== null ? `${data.physiological_age.toFixed(1)} yr` : '—'}
+            </div>
+            {data.chronological_age !== null && (
+              <div className="text-xs text-white/40">chronological {data.chronological_age.toFixed(1)} yr</div>
+            )}
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-white/30">Delta</div>
+            <div className={`text-3xl font-bold ${deltaColor}`}>
+              {delta > 0 ? '+' : ''}{delta.toFixed(1)} yr
+            </div>
+            <div className="text-xs text-white/40">{younger ? 'younger than your age' : delta > 0 ? 'older than your age' : 'on par'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-white/30">Pace of aging*</div>
+            <div className="text-3xl font-bold text-white/70">{data.pace_of_aging > 0 ? '+' : ''}{data.pace_of_aging.toFixed(2)}×</div>
+            <div className="text-xs text-white/40">{data.markers_scored}/{data.markers_total} markers</div>
+          </div>
+        </div>
+        {data.needs_date_of_birth && (
+          <p className="mt-3 text-xs text-amber-400/80">Set a date of birth in the profile to get the absolute biological age — the per-marker breakdown below works without it.</p>
+        )}
+      </GlassCard>
+
+      <GlassCard>
+        <CardHeader title="Marker contributions" subtitle="How each habit moves your biological age (negative = younger)" />
+        <div className="space-y-2 mt-3">
+          {data.contributions.map(c => {
+            const neg = c.delta_years < 0;
+            const pct = (Math.abs(c.delta_years) / maxAbs) * 100;
+            return (
+              <div key={c.key} className="flex items-center gap-3 text-xs">
+                <div className="w-40 shrink-0 text-white/70 truncate" title={c.source}>{c.name}</div>
+                <div className="w-16 shrink-0 text-right text-white/40 tabular-nums">{c.value}</div>
+                <div className="flex-1 relative h-4 bg-white/[0.04] rounded overflow-hidden">
+                  <div
+                    className={`absolute top-0 bottom-0 ${neg ? 'right-1/2 bg-emerald-500/50' : 'left-1/2 bg-amber-500/50'}`}
+                    style={{ width: `${pct / 2}%` }}
+                  />
+                  <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/20" />
+                </div>
+                <div className={`w-14 shrink-0 text-right tabular-nums ${neg ? 'text-emerald-400' : c.delta_years > 0 ? 'text-amber-400' : 'text-white/40'}`}>
+                  {c.delta_years > 0 ? '+' : ''}{c.delta_years.toFixed(2)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {data.missing_markers.length > 0 && (
+          <p className="mt-3 text-[11px] text-white/30">Not scored (no data): {data.missing_markers.join(', ')}</p>
+        )}
+        <p className="mt-2 text-[11px] text-white/25">*{data.note}</p>
+      </GlassCard>
+    </div>
+  );
+}
 
 function SupplementsTab() {
   const [view, setView] = useState<SupplementsView>('log');
@@ -2055,6 +2158,10 @@ function HealthContent() {
       )}
 
       {/* ───────── BLOOD WORK ───────── */}
+      {activeTab === 'bio-age' && (
+        <BioAgeTab />
+      )}
+
       {activeTab === 'blood' && (
         <BloodWorkTab bloodPanels={data.bloodPanels} onRefresh={() => refresh()} />
       )}

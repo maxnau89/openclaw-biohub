@@ -163,6 +163,7 @@ CREATE TABLE user_profile (
     first_name TEXT,
     last_name TEXT,
     email TEXT,
+    date_of_birth TEXT,              -- ISO YYYY-MM-DD; drives physiological-age
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

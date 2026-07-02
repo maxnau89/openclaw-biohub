@@ -116,13 +116,19 @@ sqlite3 "$HEALTH_DB" \
 
 ### Deeper analytics
 
-Three Python helpers in the openclaw-biohub repo's `pipeline/`
+Four Python helpers in the openclaw-biohub repo's `pipeline/`
 produce JSON output suitable for LLM consumption:
 
 - `blood_marker_analytics.py` — biomarker time series, correlations,
   category breakdowns, flagged markers.
 - `supplement_analytics.py` — partial Pearson correlations between
   supplement intake and recovery / HRV, controlling for sleep and strain.
+- `physiological_age.py` — a WHOOP-Age-style biological-age estimate:
+  scores nine markers (sleep consistency/hours, HR-zone time, strength,
+  steps, VO₂max via Uth-Sørensen, resting HR, lean mass %) into a
+  chronological-age delta with a per-marker breakdown. Directional
+  wellness score, not clinical. Needs `date_of_birth` in the profile for
+  the absolute age; the delta + breakdown work without it.
 - `whoop_pattern_engine.py` — full insight bundle: pairwise
   correlations (sleep ↔ HRV ↔ recovery ↔ strain), IsolationForest
   anomaly detection, linear-regression recommendations. *(WHOOP-bound

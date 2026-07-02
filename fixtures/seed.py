@@ -78,8 +78,9 @@ def generate_whoop(conn: sqlite3.Connection) -> list[dict]:
     rng = random.Random(SEED)
     # User profile + body measurements
     conn.execute(
-        "INSERT INTO user_profile (user_id, first_name, last_name, email) VALUES (?,?,?,?)",
-        (USER_ID, "Test", "User", "test@example.com"),
+        "INSERT INTO user_profile (user_id, first_name, last_name, email, date_of_birth) "
+        "VALUES (?,?,?,?,?)",
+        (USER_ID, "Test", "User", "test@example.com", "1989-06-15"),
     )
     conn.execute(
         "INSERT INTO body_measurements (user_id, height_meter, weight_kilogram, max_heart_rate) "
