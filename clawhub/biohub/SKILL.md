@@ -158,6 +158,14 @@ their stability tier (Garmin and Libre are `EXPERIMENTAL`). Libre is
 file-based: the user exports a LibreView CSV into a watch folder and
 `biohub sync libre` ingests it.
 
+**Apple Health live push:** after `biohub connect apple-health`, the
+user can run the receiver
+(`python3 -m adapters.apple_health.receiver`, binds `127.0.0.1:8894`,
+bearer-token auth printed on start) and point the *Health Auto Export*
+iOS app's REST automation at it. Pushed JSON/CSV lands in the watch
+folder and ingests live — no manual export needed. `HEALTHKIT_HOST=0.0.0.0`
+opens it to the LAN (only if the user asks).
+
 ### Logging body-composition entries and phases
 
 If the user just measured themselves ("I took my calipers", "I weighed

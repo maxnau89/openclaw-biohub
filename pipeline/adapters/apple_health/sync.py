@@ -157,6 +157,58 @@ def parse_health_export_json(payload: dict) -> tuple[list[dict], list[dict], lis
     return metric_rows, sleep_rows, workout_rows
 
 
+def parse_health_export_csv(fp: "Path") -> tuple[list[dict], list[dict], list[dict]]:
+    """Parse a Health Auto Export "Aggregated" CSV into metric rows.
+
+    HAE CSV has a Date column plus one column per metric, headers carrying
+    the unit in brackets, e.g. `Heart Rate [count/min]`, `Step Count [count]`.
+    Each non-empty numeric cell becomes a metric_sample. Sleep and workouts
+    aren't representable in the aggregate CSV, so only metrics are returned
+    (JSON push remains the richer path).
+    """
+    import csv
+
+    metric_rows: list[dict] = []
+    with open(fp, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return [], [], []
+        date_col = next(
+            (c for c in reader.fieldnames if c and c.strip().lower() in ("date", "date/time", "timestamp")),
+            reader.fieldnames[0],
+        )
+        # Pre-parse (metric_name, unit) for each value column.
+        cols: dict[str, tuple[str, str | None]] = {}
+        for c in reader.fieldnames:
+            if not c or c == date_col:
+                continue
+            m = re.match(r"^\s*(.*?)\s*(?:\[(.*?)\])?\s*$", c)
+            raw_name, unit = (m.group(1), m.group(2)) if m else (c, None)
+            cols[c] = (normalize_metric_name(raw_name), unit)
+        for row in reader:
+            d = (row.get(date_col) or "").strip()
+            if not d:
+                continue
+            date_iso = _date_str(d)
+            for col, (name, unit) in cols.items():
+                raw = (row.get(col) or "").strip().replace(",", ".")
+                if not raw:
+                    continue
+                try:
+                    value = float(raw)
+                except ValueError:
+                    continue
+                metric_rows.append({
+                    "id": f"{name}:{date_iso}",
+                    "metric_name": name,
+                    "date": date_iso,
+                    "value": value,
+                    "unit": unit,
+                    "source": "health-auto-export-csv",
+                })
+    return metric_rows, [], []
+
+
 # ─── DB helpers ──────────────────────────────────────────────────────────────
 
 
@@ -523,6 +575,8 @@ You'll be asked for the watch directory path next.
             if fp.suffix.lower() == ".json":
                 payload = json.loads(fp.read_text())
                 metrics, sleeps, workouts = parse_health_export_json(payload)
+            elif fp.suffix.lower() == ".csv":
+                metrics, sleeps, workouts = parse_health_export_csv(fp)
             elif fp.suffix.lower() == ".xml":
                 metrics, sleeps, workouts = parse_native_xml_export(fp)
             elif fp.suffix.lower() == ".zip":
@@ -569,7 +623,7 @@ You'll be asked for the watch directory path next.
             inserted = 0
             files = sorted(
                 f for f in watch.iterdir()
-                if f.is_file() and f.suffix.lower() in (".json", ".xml", ".zip")
+                if f.is_file() and f.suffix.lower() in (".json", ".csv", ".xml", ".zip")
             )
             if limit:
                 files = files[:limit]

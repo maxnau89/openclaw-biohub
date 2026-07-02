@@ -21,7 +21,7 @@ from biohub.registry import ADAPTERS, all_adapters, get_adapter
 
 
 def test_registry_contains_all_v0_2_adapters():
-    expected = {"whoop", "oura", "fitbit", "apple-health", "garmin"}
+    expected = {"whoop", "oura", "fitbit", "apple-health", "garmin", "libre"}
     assert expected == set(ADAPTERS)
 
 
@@ -38,7 +38,7 @@ def test_get_adapter_unknown_slug_raises():
 def test_all_adapters_in_registry_order():
     """Stable adapters first; experimental at the bottom."""
     slugs = [a.slug for a in all_adapters()]
-    assert slugs == ["whoop", "oura", "fitbit", "apple-health", "garmin"]
+    assert slugs == ["whoop", "oura", "fitbit", "apple-health", "garmin", "libre"]
 
 
 # ─── list-adapters ───────────────────────────────────────────────────────────
