@@ -7,6 +7,50 @@ v0.x means the schema and CLI may break between minor versions.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-02
+
+### Added
+
+- **FreeStyle Libre 3 / LibreView CGM adapter** (`libre`). File-based
+  (LibreView has no public API): drop a CSV export or JSON dump into a
+  watch folder and `biohub sync libre` ingests it into its own
+  `libre_raw.db`. Auto-detects `,`/`;` delimiter, EN/DE headers, and
+  mg/dL vs mmol/L. New **Glucose** dashboard tab + `glucose_analytics.py`
+  (mean, SD, CV, GMI/estimated-HbA1c, time-in-range, day-vs-overnight
+  means, overnight-glucose ↔ next-day-recovery correlation).
+- **Physiological Age** — a WHOOP-Age-style biological-age estimate
+  (`physiological_age.py` + **Bio Age** tab). Scores nine markers
+  (sleep consistency/hours, HR-zone time, strength, steps, VO₂max via
+  the Uth-Sørensen estimator, resting HR, lean mass %) into a
+  chronological-age delta with a per-marker breakdown. Reverse-
+  engineered from WHOOP's unpublished model, validated to ±0.15 yr per
+  marker; computed entirely from data biohub already ingests. Directional
+  wellness score, not clinical.
+- **Apple Health live push receiver** — the Apple Health adapter now
+  accepts a live feed from the *Health Auto Export* iOS app via a
+  token-authenticated HTTP receiver
+  (`python3 -m adapters.apple_health.receiver`, binds 127.0.0.1 by
+  default). Pushed JSON/CSV lands in the watch folder and ingests
+  immediately. The adapter also gained a Health Auto Export **CSV**
+  parser (alongside JSON/XML/zip).
+- **Automated bulk ingest** for blood panels and supplements:
+  `blood_panel_import.py` (watch-folder lab-PDF/text → `blood_panels`
+  + `blood_markers`) and `supplement_import.py` (CSV/JSON →
+  `supplement_log`, auto-creating unknown supplements). Both deduped
+  per file, cron-safe.
+- `date_of_birth` column on `user_profile` (drives the biological-age
+  absolute number).
+
+### Fixed
+
+- **Body-sim morph composition** rebuilt on MakeHuman's bilinear macro
+  grid (14 morphs incl. the four corners) instead of additively summing
+  the muscle + weight axes — eliminates the surface rippling / hard
+  breaks on strongly-modified figures (additive error measured at
+  60–138 % of the deformation). Visible muscularity is now gated by
+  leanness so a high-FFMI-but-obese body reads as fat rather than
+  muscular.
+
 ## [0.4.0] — 2026-06-02
 
 ### Added
