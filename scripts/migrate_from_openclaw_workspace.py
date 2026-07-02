@@ -130,6 +130,31 @@ def migrate_healthkit(src: Path) -> dict:
     return {"metric_samples": n}
 
 
+def migrate_body_composition(src: Path) -> dict:
+    """The legacy healthkit.db carries a `body_composition` table whose schema
+    is identical to biohub's (date-keyed, skinfolds + BF% + lean/fat mass).
+    Copy it straight into health.db so the physiological-age lean-mass marker
+    and the body-comp simulator have history. No-op if the source lacks it."""
+    conn = _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0])
+    conn.execute("ATTACH DATABASE ? AS src", (str(src),))
+    has = conn.execute(
+        "SELECT 1 FROM src.sqlite_master WHERE type='table' AND name='body_composition'"
+    ).fetchone()
+    n = 0
+    if has:
+        cols = ("date, method, body_fat_pct, weight_kg, lean_mass_kg, fat_mass_kg, "
+                "chest_mm, abdominal_mm, thigh_mm, tricep_mm, subscapular_mm, "
+                "suprailiac_mm, midaxillary_mm, notes")
+        conn.execute(
+            f"INSERT OR IGNORE INTO body_composition ({cols}) SELECT {cols} FROM src.body_composition"
+        )
+        n = conn.execute("SELECT COUNT(*) FROM body_composition").fetchone()[0]
+    conn.commit()
+    conn.execute("DETACH DATABASE src")
+    conn.close()
+    return {"body_composition": n}
+
+
 def rollup() -> dict:
     """Project raw DBs into health.db using each adapter's own rollup."""
     _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0]).close()
@@ -158,6 +183,8 @@ def main() -> int:
     if args.healthkit and args.healthkit.exists():
         print(f"→ apple_health_raw.db : {APPLE_HEALTH_DB}")
         print("  " + str(migrate_healthkit(args.healthkit)))
+        print(f"→ health.db body_composition : {HEALTH_DB}")
+        print("  " + str(migrate_body_composition(args.healthkit)))
     if not args.skip_rollup:
         print(f"→ health.db rollup : {HEALTH_DB}")
         print("  " + str(rollup()))
