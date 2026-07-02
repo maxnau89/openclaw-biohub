@@ -144,6 +144,18 @@ produce JSON output suitable for LLM consumption:
 
 Invoke any of these with `python3 pipeline/<name>.py` and parse the JSON.
 
+### Automated ingest (bulk history)
+
+Beyond the dashboard's one-off entry, two watch-folder importers ingest
+history in bulk (deduped, cron-safe):
+
+- `blood_panel_import.py --watch-dir <dir>` — parses dropped lab PDFs /
+  text into `blood_panels` + `blood_markers` (reference-range flags
+  included).
+- `supplement_import.py --watch-dir <dir>` — imports a
+  `date,supplement,dose_mg,...` CSV/JSON into `supplement_log`,
+  auto-creating unknown supplements.
+
 ### Connecting a new device
 
 If the user says "connect my Fitbit / Oura / Garmin / …", tell them:
