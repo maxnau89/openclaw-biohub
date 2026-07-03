@@ -298,7 +298,26 @@ export function getWhoopData(): WhoopData {
       const tables = (mcDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(t => t.name);
 
       if (tables.includes('daily_metrics')) {
-        daily = mcDb.prepare('SELECT * FROM daily_metrics ORDER BY date DESC').all() as DailyRow[];
+        // daily_metrics is source-agnostic and can hold MORE THAN ONE row per
+        // date (e.g. a WHOOP row + an Apple Health row for the same day). The
+        // charts assume one row per date, so merge here: WHOOP first, then fill
+        // any remaining nulls from the other sources. Without this, overlapping
+        // dates produce duplicate points with null sleep metrics — gaps in the
+        // Sleep Performance bars and a broken Sleep Efficiency line.
+        const rows = mcDb.prepare(
+          "SELECT * FROM daily_metrics ORDER BY date DESC, (source = 'whoop') DESC"
+        ).all() as DailyRow[];
+        const byDate = new Map<string, DailyRow>();
+        for (const r of rows) {
+          const existing = byDate.get(r.date);
+          if (!existing) { byDate.set(r.date, { ...r }); continue; }
+          const dst = existing as unknown as Record<string, unknown>;
+          const srcRow = r as unknown as Record<string, unknown>;
+          for (const k of Object.keys(srcRow)) {
+            if (dst[k] == null && srcRow[k] != null) dst[k] = srcRow[k];
+          }
+        }
+        daily = Array.from(byDate.values());
       }
 
       if (tables.includes('blood_panels')) {

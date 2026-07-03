@@ -155,6 +155,35 @@ def migrate_body_composition(src: Path) -> dict:
     return {"body_composition": n}
 
 
+def migrate_mission_control(src: Path) -> dict:
+    """Blood panels + supplements live in the legacy mission-control.db, whose
+    schemas are identical to biohub's health.db. Copy them straight in. No-op
+    for tables the source lacks."""
+    conn = _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0])
+    conn.execute("ATTACH DATABASE ? AS mc", (str(src),))
+    out = {}
+    specs = {
+        "blood_panels": "id, panel_date, lab_name, notes, source_filename, raw_text, created_at",
+        "blood_markers": "id, panel_id, marker_name, value, unit, ref_low, ref_high, status, created_at",
+        "supplements": ("id, name, active_ingredient, brand, dose_mg, dose_unit, form, "
+                        "amazon_asin, default_lag_hours, notes, created_at"),
+        "supplement_log": ("id, supplement_id, taken_at, dose_mg, dose_unit, notes, source, "
+                           "intake_start, intake_end, duration_days, is_period, amazon_order_id, created_at"),
+    }
+    for table, cols in specs.items():
+        has = conn.execute(
+            "SELECT 1 FROM mc.sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone()
+        if not has:
+            continue
+        conn.execute(f"INSERT OR IGNORE INTO {table} ({cols}) SELECT {cols} FROM mc.{table}")
+        out[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    conn.commit()
+    conn.execute("DETACH DATABASE mc")
+    conn.close()
+    return out
+
+
 def rollup() -> dict:
     """Project raw DBs into health.db using each adapter's own rollup."""
     _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0]).close()
@@ -173,6 +202,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--whoop-analytics", type=Path, required=True)
     ap.add_argument("--healthkit", type=Path)
+    ap.add_argument("--mission-control", type=Path,
+                    help="Legacy mission-control.db (blood panels + supplements)")
     ap.add_argument("--skip-rollup", action="store_true")
     args = ap.parse_args()
 
@@ -185,6 +216,9 @@ def main() -> int:
         print("  " + str(migrate_healthkit(args.healthkit)))
         print(f"→ health.db body_composition : {HEALTH_DB}")
         print("  " + str(migrate_body_composition(args.healthkit)))
+    if args.mission_control and args.mission_control.exists():
+        print(f"→ health.db blood + supplements : {HEALTH_DB}")
+        print("  " + str(migrate_mission_control(args.mission_control)))
     if not args.skip_rollup:
         print(f"→ health.db rollup : {HEALTH_DB}")
         print("  " + str(rollup()))
