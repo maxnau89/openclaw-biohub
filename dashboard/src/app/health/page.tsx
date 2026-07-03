@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useAutoRefresh } from '@/lib/fetcher';
+import { useAutoRefresh, apiUrl } from '@/lib/fetcher';
 import { TabBar } from '@/components/layout/TabBar';
 import { GlassCard, CardHeader } from '@/components/cards/GlassCard';
 import { useSearchParams } from 'next/navigation';
@@ -282,7 +282,7 @@ function BloodPanelUpload({ onUploaded, panelCount }: { onUploaded: () => void; 
     setWiping(true);
     setResult(null);
     try {
-      const res = await fetch('/api/blood-panel', { method: 'DELETE' });
+      const res = await fetch(apiUrl('/api/blood-panel'), { method: 'DELETE' });
       const data = await res.json();
       setResult({ message: data.message || `Wiped ${data.deleted} panels` });
       onUploaded();
@@ -311,7 +311,7 @@ function BloodPanelUpload({ onUploaded, panelCount }: { onUploaded: () => void; 
           form.append('panel_date', panelDate);
         }
         if (labName) form.append('lab_name', labName);
-        const res = await fetch('/api/blood-panel', { method: 'POST', body: form });
+        const res = await fetch(apiUrl('/api/blood-panel'), { method: 'POST', body: form });
         const data = await res.json();
         if (data.error) {
           errors.push(`${file.name}: ${data.error}`);
@@ -617,7 +617,7 @@ function SupplementsTab() {
 
   const fetchSupplements = async () => {
     try {
-      const res = await fetch('/api/supplements');
+      const res = await fetch(apiUrl('/api/supplements'));
       const data: SupplementsData = await res.json();
       setSupplements(data.supplements || []);
       setRecentLogs(data.recent_logs || []);
@@ -627,7 +627,7 @@ function SupplementsTab() {
   const fetchCorrelations = async () => {
     setLoadingCorr(true);
     try {
-      const res = await fetch('/api/supplement-analytics');
+      const res = await fetch(apiUrl('/api/supplement-analytics'));
       const data = await res.json();
       setCorrelations(data.supplements || []);
     } catch { /* */ } finally {
@@ -657,7 +657,7 @@ function SupplementsTab() {
     if (name.length < 3) return;
     setSuggestionLoading(true);
     try {
-      const res = await fetch('/api/supplements', {
+      const res = await fetch(apiUrl('/api/supplements'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'suggest', name }),
@@ -682,7 +682,7 @@ function SupplementsTab() {
       if (existing) {
         supId = existing.id;
       } else {
-        const createRes = await fetch('/api/supplements', {
+        const createRes = await fetch(apiUrl('/api/supplements'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -699,7 +699,7 @@ function SupplementsTab() {
       }
 
       // Log intake
-      await fetch('/api/supplements', {
+      await fetch(apiUrl('/api/supplements'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -725,7 +725,7 @@ function SupplementsTab() {
 
   const handleDeleteSupplement = async (id: number) => {
     if (!confirm('Delete this supplement and all its logs?')) return;
-    await fetch(`/api/supplements?id=${id}`, { method: 'DELETE' });
+    await fetch(apiUrl(`/api/supplements?id=${id}`), { method: 'DELETE' });
     fetchSupplements();
   };
 
@@ -746,7 +746,7 @@ function SupplementsTab() {
         fd.append('url', importUrl);
       }
 
-      const res = await fetch('/api/supplements/import-amazon', { method: 'POST', body: fd });
+      const res = await fetch(apiUrl('/api/supplements/import-amazon'), { method: 'POST', body: fd });
       const data = await res.json();
 
       if (!res.ok || data.error) {
@@ -787,7 +787,7 @@ function SupplementsTab() {
         const unitsPerDay = editedUnitsPerDay.get(i) || s.units_per_day || 1;
 
         // Create supplement
-        const createRes = await fetch('/api/supplements', {
+        const createRes = await fetch(apiUrl('/api/supplements'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -807,7 +807,7 @@ function SupplementsTab() {
         for (const period of s.intake_periods || []) {
           const durationDays = Math.round(s.unit_count / unitsPerDay);
           const intakeEnd = addDaysToDate(period.intake_start, durationDays);
-          await fetch('/api/supplements', {
+          await fetch(apiUrl('/api/supplements'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

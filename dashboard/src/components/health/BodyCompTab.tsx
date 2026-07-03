@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiUrl } from '@/lib/fetcher';
 import { GlassCard, CardHeader } from '@/components/cards/GlassCard';
 import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle, User } from 'lucide-react';
 import { BodyModel3D } from './body-sim/BodyModel3D';
@@ -606,7 +607,7 @@ export function BodyCompositionTab() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/body-composition')
+    fetch(apiUrl('/api/body-composition'))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setError(String(e)); setLoading(false); });
