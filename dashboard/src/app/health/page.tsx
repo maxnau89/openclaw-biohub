@@ -443,14 +443,44 @@ interface GlucoseData {
   error?: string;
 }
 
+const GLUCOSE_RANGES = [
+  { id: 90, label: '90d' },
+  { id: 365, label: '1y' },
+  { id: 730, label: '2y' },
+];
+
+function GlucoseRangeSelector({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.06]">
+      {GLUCOSE_RANGES.map(r => (
+        <button key={r.id} onClick={() => onChange(r.id)}
+          className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+            value === r.id ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'text-white/30 hover:text-white/50 border border-transparent'
+          }`}>{r.label}</button>
+      ))}
+    </div>
+  );
+}
+
 function GlucoseTab() {
-  const { data, loading } = useAutoRefresh<GlucoseData>('/api/glucose?days=90', 300000);
+  const [days, setDays] = useState<number>(90);
+  const { data, loading } = useAutoRefresh<GlucoseData>(`/api/glucose?days=${days}`, 300000);
 
   if (loading && !data) {
     return <GlassCard className="animate-pulse"><div className="h-24 flex items-center justify-center text-white/20 text-xs">Loading glucose…</div></GlassCard>;
   }
-  if (!data || data.error || !data.overview || data.overview.readings === 0) {
-    return <GlassCard><p className="text-sm text-white/40">No glucose data yet — connect the FreeStyle Libre adapter (<code className="text-white/60">biohub connect libre</code>) and drop a LibreView CSV export into the watch folder.</p></GlassCard>;
+  const empty = !data || data.error || !data.overview || data.overview.readings === 0;
+  if (empty) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end"><GlucoseRangeSelector value={days} onChange={setDays} /></div>
+        <GlassCard><p className="text-sm text-white/40">
+          No glucose readings in the last {days} days.
+          {days < 730 ? ' Try a wider range above,' : ''} or connect the FreeStyle Libre adapter
+          (<code className="text-white/60">biohub connect libre</code>) and drop a LibreView CSV export into the watch folder.
+        </p></GlassCard>
+      </div>
+    );
   }
 
   const o = data.overview;
@@ -468,13 +498,14 @@ function GlucoseTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><GlucoseRangeSelector value={days} onChange={setDays} /></div>
       <GlassCard>
         <div className="flex flex-wrap gap-x-8 gap-y-3">
           {stat('Mean glucose', `${o.mean_mgdl} mg/dL`, `SD ${o.sd_mgdl} · CV ${o.cv_pct}%`)}
           {stat('GMI (est. HbA1c)', `${o.gmi_pct}%`, o.gmi_pct && o.gmi_pct < 5.7 ? 'normal range' : 'elevated', (o.gmi_pct ?? 0) < 5.7 ? 'text-emerald-400' : 'text-amber-400')}
           {stat('Time in range', `${o.time_in_range_pct}%`, `${o.target_low}–${o.target_high} mg/dL`, (o.time_in_range_pct ?? 0) >= 70 ? 'text-emerald-400' : 'text-amber-400')}
           {stat('Low / high', `${o.hypo_pct}% / ${o.hyper_pct}%`, 'time below / above range')}
-          {stat('Readings', `${o.readings.toLocaleString()}`, 'last 90 days')}
+          {stat('Readings', `${o.readings.toLocaleString()}`, `last ${days} days`)}
         </div>
         {corr?.r !== null && corr?.r !== undefined && (
           <p className="mt-3 text-xs text-white/40">
