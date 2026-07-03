@@ -55,6 +55,12 @@ def _db2_ddl() -> str:
 
 
 def _init(db_path: Path, ddl: str) -> sqlite3.Connection:
+    # Make the DDL idempotent so the migration is safe to re-run (e.g. to pull
+    # in a newly-added source). Guard against double-inserting IF NOT EXISTS on
+    # schemas that already have it (libre / apple_health).
+    import re
+    ddl = re.sub(r"CREATE TABLE (?!IF NOT EXISTS)", "CREATE TABLE IF NOT EXISTS ", ddl)
+    ddl = re.sub(r"CREATE INDEX (?!IF NOT EXISTS)", "CREATE INDEX IF NOT EXISTS ", ddl)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(ddl)
