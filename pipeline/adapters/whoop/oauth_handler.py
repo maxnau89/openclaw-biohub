@@ -70,6 +70,11 @@ def do_refresh() -> dict | None:
             "refresh_token": refresh_token,
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
+            # WHOOP only returns a NEW (rotated) refresh_token when the refresh
+            # request carries scope=offline. Without it the old token is consumed
+            # but not replaced, so the next refresh 400s — forcing a manual
+            # re-auth every few days. With it, the refresh chain never breaks.
+            "scope": "offline",
         })
         print(f"Token refreshed: expires_in={result.get('expires_in')}s")
         save_creds(result)
