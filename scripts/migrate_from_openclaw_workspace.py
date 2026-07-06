@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +53,28 @@ def _db2_ddl() -> str:
     text, so drop it — the remaining lines are valid DDL / SQL comments."""
     tail = SCHEMA.read_text().split("-- DB 2:", 1)[1]
     return tail.split("\n", 1)[1]
+
+
+def snapshot(src: Path, tmpdir: Path) -> Path:
+    """Consistent read-only copy of a live SQLite DB via the online backup API.
+
+    The legacy source DBs (whoop_analytics.db, healthkit.db) are written by the
+    running OpenClaw sync jobs. Reading them directly with ATTACH holds a lock
+    that can make a concurrent writer fail with "database is locked". The backup
+    API copies a consistent snapshot in chunks, yielding to writers, so the live
+    sync is never blocked. Migrations then read from the copy — zero contention.
+    """
+    dst = tmpdir / (src.stem + "-snap.db")
+    s = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
+    try:
+        d = sqlite3.connect(dst)
+        try:
+            s.backup(d)
+        finally:
+            d.close()
+    finally:
+        s.close()
+    return dst
 
 
 def _init(db_path: Path, ddl: str) -> sqlite3.Connection:
@@ -96,6 +119,12 @@ def migrate_whoop(src: Path) -> dict:
 def migrate_glucose(src: Path) -> dict:
     conn = _init(LIBRE_DB, LIBRE_SCHEMA.read_text())
     conn.execute("ATTACH DATABASE ? AS src", (str(src),))
+    if not conn.execute(
+        "SELECT 1 FROM src.sqlite_master WHERE type='table' AND name='cgm_glucose'"
+    ).fetchone():
+        conn.execute("DETACH DATABASE src")
+        conn.close()
+        return {"glucose_data": 0}
     # Copy the raw dual-column table verbatim for fidelity.
     conn.execute(
         "INSERT OR IGNORE INTO cgm_glucose "
@@ -210,25 +239,42 @@ def main() -> int:
     ap.add_argument("--healthkit", type=Path)
     ap.add_argument("--mission-control", type=Path,
                     help="Legacy mission-control.db (blood panels + supplements)")
+    ap.add_argument("--snapshot", action="store_true",
+                    help="Copy each source DB (online backup) before reading, so a "
+                         "concurrent live writer is never locked. Use for scheduled re-syncs.")
     ap.add_argument("--skip-rollup", action="store_true")
     args = ap.parse_args()
 
-    print(f"→ whoop_raw.db  : {WHOOP_DB}")
-    print("  " + str(migrate_whoop(args.whoop_analytics)))
-    print(f"→ libre_raw.db  : {LIBRE_DB}")
-    print("  " + str(migrate_glucose(args.whoop_analytics)))
-    if args.healthkit and args.healthkit.exists():
-        print(f"→ apple_health_raw.db : {APPLE_HEALTH_DB}")
-        print("  " + str(migrate_healthkit(args.healthkit)))
-        print(f"→ health.db body_composition : {HEALTH_DB}")
-        print("  " + str(migrate_body_composition(args.healthkit)))
-    if args.mission_control and args.mission_control.exists():
-        print(f"→ health.db blood + supplements : {HEALTH_DB}")
-        print("  " + str(migrate_mission_control(args.mission_control)))
-    if not args.skip_rollup:
-        print(f"→ health.db rollup : {HEALTH_DB}")
-        print("  " + str(rollup()))
-    print("done.")
+    tmpctx = tempfile.TemporaryDirectory(prefix="biohub-snap-") if args.snapshot else None
+    tmpdir = Path(tmpctx.name) if tmpctx else None
+
+    def src(p: Path | None) -> Path | None:
+        if p is None or not p.exists():
+            return p
+        return snapshot(p, tmpdir) if tmpdir else p
+
+    try:
+        whoop_src = src(args.whoop_analytics)
+        print(f"→ whoop_raw.db  : {WHOOP_DB}" + ("  (snapshot)" if args.snapshot else ""))
+        print("  " + str(migrate_whoop(whoop_src)))
+        print(f"→ libre_raw.db  : {LIBRE_DB}")
+        print("  " + str(migrate_glucose(whoop_src)))
+        if args.healthkit and args.healthkit.exists():
+            hk_src = src(args.healthkit)
+            print(f"→ apple_health_raw.db : {APPLE_HEALTH_DB}")
+            print("  " + str(migrate_healthkit(hk_src)))
+            print(f"→ health.db body_composition : {HEALTH_DB}")
+            print("  " + str(migrate_body_composition(hk_src)))
+        if args.mission_control and args.mission_control.exists():
+            print(f"→ health.db blood + supplements : {HEALTH_DB}")
+            print("  " + str(migrate_mission_control(src(args.mission_control))))
+        if not args.skip_rollup:
+            print(f"→ health.db rollup : {HEALTH_DB}")
+            print("  " + str(rollup()))
+        print("done.")
+    finally:
+        if tmpctx:
+            tmpctx.cleanup()
     return 0
 
 
