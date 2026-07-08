@@ -219,6 +219,56 @@ def migrate_mission_control(src: Path) -> dict:
     return out
 
 
+def migrate_phases(src: Path) -> dict:
+    """The legacy healthkit.db models user-defined windows as two tables:
+    `training_blocks` (periodisation blocks) and `interventions` (supplement /
+    medication courses). biohub unifies them as `tracking_phases`. Map both.
+    Deduped on (name, start_date); rows without a start_date are skipped
+    (tracking_phases.start_date is NOT NULL)."""
+    conn = _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0])
+    conn.execute("ATTACH DATABASE ? AS hk", (str(src),))
+
+    def _has(t: str) -> bool:
+        return bool(conn.execute(
+            "SELECT 1 FROM hk.sqlite_master WHERE type='table' AND name=?", (t,)
+        ).fetchone())
+
+    def _add(name, category, start_date, end_date, notes) -> int:
+        if not name or not start_date:
+            return 0
+        if conn.execute(
+            "SELECT 1 FROM tracking_phases WHERE name=? AND start_date=?",
+            (name, start_date),
+        ).fetchone():
+            return 0
+        conn.execute(
+            "INSERT INTO tracking_phases (name, category, start_date, end_date, notes) "
+            "VALUES (?,?,?,?,?)",
+            (name, category, start_date, end_date or None, notes or None),
+        )
+        return 1
+
+    n = 0
+    if _has("training_blocks"):
+        for name, sd, ed, goal, notes in conn.execute(
+            "SELECT name, start_date, end_date, goal, notes FROM hk.training_blocks"
+        ).fetchall():
+            note = " · ".join(x for x in (goal, notes) if x)
+            n += _add(name, "training", sd, ed, note)
+    if _has("interventions"):
+        for compound, cat, sd, ed, dose, notes in conn.execute(
+            "SELECT compound, category, start_date, end_date, dose, notes FROM hk.interventions"
+        ).fetchall():
+            note = " · ".join(x for x in (dose, notes) if x)
+            n += _add(compound or cat or "intervention", cat or "intervention", sd, ed, note)
+
+    conn.commit()
+    total = conn.execute("SELECT COUNT(*) FROM tracking_phases").fetchone()[0]
+    conn.execute("DETACH DATABASE hk")
+    conn.close()
+    return {"tracking_phases_added": n, "tracking_phases_total": total}
+
+
 def rollup() -> dict:
     """Project raw DBs into health.db using each adapter's own rollup."""
     _init(HEALTH_DB, SCHEMA.read_text().split("-- DB 2:")[0]).close()
@@ -265,6 +315,8 @@ def main() -> int:
             print("  " + str(migrate_healthkit(hk_src)))
             print(f"→ health.db body_composition : {HEALTH_DB}")
             print("  " + str(migrate_body_composition(hk_src)))
+            print(f"→ health.db tracking_phases : {HEALTH_DB}")
+            print("  " + str(migrate_phases(hk_src)))
         if args.mission_control and args.mission_control.exists():
             print(f"→ health.db blood + supplements : {HEALTH_DB}")
             print("  " + str(migrate_mission_control(src(args.mission_control))))
