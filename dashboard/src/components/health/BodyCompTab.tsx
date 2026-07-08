@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiUrl } from '@/lib/fetcher';
 import { GlassCard, CardHeader } from '@/components/cards/GlassCard';
 import { Activity, TrendingDown, TrendingUp, Trophy, Calendar, Target, Calculator, AlertTriangle, User } from 'lucide-react';
@@ -113,7 +113,8 @@ function MultiSeriesChart({ data, height = 240 }: {
   data: { weights: Weight[]; entries: BodyCompEntry[]; phases: TrackingPhase[] };
   height?: number;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [scrubDay, setScrubDay] = useState<string | null>(null);
   const allDates = data.weights.map(w => w.day);
   if (allDates.length < 2) return null;
 
@@ -156,8 +157,27 @@ function MultiSeriesChart({ data, height = 240 }: {
   // Entries that have body_fat_pct (caliper / DEXA) — Apple-Health-only rows skipped here.
   const bfEntries = data.entries.filter(c => c.body_fat_pct !== null);
 
+  // Scrubber: map the mouse to the nearest daily-weight point (viewBox-aware,
+  // so it works despite the responsive width scaling).
+  const onScrub = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    // Map cursor CSS-px → viewBox units (width=100%, height auto ⇒ uniform scale).
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    let best: string | null = null;
+    let bestDx = Infinity;
+    for (const w of data.weights) {
+      const dx = Math.abs(x(w.day) - px);
+      if (dx < bestDx) { bestDx = dx; best = w.day; }
+    }
+    setScrubDay(bestDx <= 40 ? best : null);
+  };
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+    <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible"
+         onMouseMove={onScrub} onMouseLeave={() => setScrubDay(null)}>
       {years.map((yr, i) => {
         const yrStart = allDates.find(d => d.startsWith(yr));
         const yrEnd = [...allDates].reverse().find(d => d.startsWith(yr));
@@ -190,7 +210,8 @@ function MultiSeriesChart({ data, height = 240 }: {
 
       {/* Daily weight dots */}
       {data.weights.map((p, i) => (
-        <circle key={`w-${i}`} cx={x(p.day)} cy={yKg(p.kg)} r={1.5} fill="rgba(167,139,250,0.3)" />
+        <circle key={`w-${i}`} cx={x(p.day)} cy={yKg(p.kg)} r={scrubDay === p.day ? 3.5 : 1.5}
+                fill={scrubDay === p.day ? '#c4b5fd' : 'rgba(167,139,250,0.3)'} />
       ))}
 
       {/* 7-day rolling weight line */}
@@ -202,17 +223,13 @@ function MultiSeriesChart({ data, height = 240 }: {
         const phaseColor = c.active_phases.length > 0
           ? colorForPhase(c.active_phases[0], data.phases)
           : null;
-        const active = hover === i;
+        const active = scrubDay === c.date;
         return (
           <g key={`bf-${i}`}>
             <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={active ? 6 : 4} fill="#fb923c" stroke="#fff" strokeWidth={active ? 2 : 1} />
             {phaseColor && (
               <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={7} fill="none" stroke={phaseColor} strokeWidth={1.5} />
             )}
-            {/* Generous transparent hit target — the visible dot is only ~8px */}
-            <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={12} fill="transparent"
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
           </g>
         );
       })}
@@ -221,25 +238,32 @@ function MultiSeriesChart({ data, height = 240 }: {
               stroke="rgba(251,146,60,0.4)" strokeWidth={1} fill="none" strokeDasharray="3,3" />
       )}
 
-      {/* Hover tooltip (rendered last → on top) */}
-      {hover !== null && (() => {
-        const c = bfEntries[hover];
-        const px = x(c.date);
-        const py = yBF(c.body_fat_pct!);
-        const lines: { t: string; head?: boolean }[] = [{ t: c.date, head: true }];
-        lines.push({ t: `Body fat: ${c.body_fat_pct!.toFixed(1)}%` });
-        if (c.weight_kg != null) lines.push({ t: `Weight: ${c.weight_kg.toFixed(1)} kg` });
-        if (c.lean_mass_kg != null) lines.push({ t: `Lean: ${c.lean_mass_kg.toFixed(1)} kg` });
-        if (c.fat_mass_kg != null) lines.push({ t: `Fat: ${c.fat_mass_kg.toFixed(1)} kg` });
-        if (c.method) lines.push({ t: c.method });
-        if (c.active_phases.length > 0) lines.push({ t: c.active_phases.join(', ') });
+      {/* Scrubber: vertical guide + tooltip for the day under the cursor.
+          Shows daily weight everywhere; enriches with BF / lean / fat / method
+          / phase when that day also has a caliper measurement. */}
+      {scrubDay && (() => {
+        const wp = data.weights.find(w => w.day === scrubDay);
+        if (!wp) return null;
+        const c = bfEntries.find(e => e.date === scrubDay);
+        const gx = x(scrubDay);
+        const lines: { t: string; head?: boolean }[] = [{ t: scrubDay, head: true }];
+        lines.push({ t: `Weight: ${wp.kg.toFixed(1)} kg` });
+        if (c) {
+          if (c.body_fat_pct != null) lines.push({ t: `Body fat: ${c.body_fat_pct.toFixed(1)}%` });
+          if (c.lean_mass_kg != null) lines.push({ t: `Lean: ${c.lean_mass_kg.toFixed(1)} kg` });
+          if (c.fat_mass_kg != null) lines.push({ t: `Fat: ${c.fat_mass_kg.toFixed(1)} kg` });
+          if (c.method) lines.push({ t: c.method });
+          if (c.active_phases.length > 0) lines.push({ t: c.active_phases.join(', ') });
+        }
         const boxW = 158;
         const lineH = 15;
         const boxH = lines.length * lineH + 10;
-        const bx = px > W - 190 ? px - boxW - 12 : px + 12;
-        const by = Math.max(padT, Math.min(py - boxH / 2, H - boxH - 2));
+        const bx = gx > W - 190 ? gx - boxW - 12 : gx + 12;
+        const by = padT + 4;
         return (
           <g pointerEvents="none">
+            <line x1={gx} y1={padT} x2={gx} y2={padT + innerH} stroke="rgba(255,255,255,0.25)" strokeWidth={1} strokeDasharray="3,3" />
+            <circle cx={gx} cy={yKg(wp.kg)} r={4} fill="#c4b5fd" stroke="#fff" strokeWidth={1} />
             <rect x={bx} y={by} width={boxW} height={boxH} rx={5}
                   fill="rgba(9,11,18,0.96)" stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
             {lines.map((ln, i) => (
