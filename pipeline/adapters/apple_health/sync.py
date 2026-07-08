@@ -361,11 +361,15 @@ def _rollup(raw_db: Path, health_db: Path) -> int:
         last_weight = dst.execute(
             "SELECT MAX(date) FROM body_composition WHERE method = 'apple-health'"
         ).fetchone()[0] or "2000-01-01"
+        # Health Auto Export names the scale-weight metric 'weight_body_mass';
+        # biohub's own HKQuantityTypeIdentifierBodyMass parser maps to
+        # 'body_mass'. Match both so daily weight rolls up regardless of source
+        # (native ingestion vs data migrated from the legacy healthkit.db).
         weight_rows = src.execute("""
             SELECT substr(date, 1, 10) AS day,
                    AVG(value) AS avg_kg
             FROM metric_samples
-            WHERE metric_name = 'body_mass'
+            WHERE metric_name IN ('body_mass', 'weight_body_mass')
               AND substr(date, 1, 10) > ?
             GROUP BY day
         """, (last_weight,)).fetchall()
