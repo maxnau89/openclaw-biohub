@@ -113,6 +113,7 @@ function MultiSeriesChart({ data, height = 240 }: {
   data: { weights: Weight[]; entries: BodyCompEntry[]; phases: TrackingPhase[] };
   height?: number;
 }) {
+  const [hover, setHover] = useState<number | null>(null);
   const allDates = data.weights.map(w => w.day);
   if (allDates.length < 2) return null;
 
@@ -201,16 +202,17 @@ function MultiSeriesChart({ data, height = 240 }: {
         const phaseColor = c.active_phases.length > 0
           ? colorForPhase(c.active_phases[0], data.phases)
           : null;
+        const active = hover === i;
         return (
           <g key={`bf-${i}`}>
-            <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={4} fill="#fb923c" stroke="#fff" strokeWidth={1} />
+            <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={active ? 6 : 4} fill="#fb923c" stroke="#fff" strokeWidth={active ? 2 : 1} />
             {phaseColor && (
               <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={7} fill="none" stroke={phaseColor} strokeWidth={1.5} />
             )}
-            <title>
-              {c.date}: {c.body_fat_pct!.toFixed(1)}% BF, Lean: {c.lean_mass_kg ?? '—'} kg
-              {c.active_phases.length > 0 ? ` (${c.active_phases.join(', ')})` : ''}
-            </title>
+            {/* Generous transparent hit target — the visible dot is only ~8px */}
+            <circle cx={x(c.date)} cy={yBF(c.body_fat_pct!)} r={12} fill="transparent"
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
           </g>
         );
       })}
@@ -218,6 +220,37 @@ function MultiSeriesChart({ data, height = 240 }: {
         <path d={`M ${bfEntries.map(c => `${x(c.date)},${yBF(c.body_fat_pct!)}`).join(' L ')}`}
               stroke="rgba(251,146,60,0.4)" strokeWidth={1} fill="none" strokeDasharray="3,3" />
       )}
+
+      {/* Hover tooltip (rendered last → on top) */}
+      {hover !== null && (() => {
+        const c = bfEntries[hover];
+        const px = x(c.date);
+        const py = yBF(c.body_fat_pct!);
+        const lines: { t: string; head?: boolean }[] = [{ t: c.date, head: true }];
+        lines.push({ t: `Body fat: ${c.body_fat_pct!.toFixed(1)}%` });
+        if (c.weight_kg != null) lines.push({ t: `Weight: ${c.weight_kg.toFixed(1)} kg` });
+        if (c.lean_mass_kg != null) lines.push({ t: `Lean: ${c.lean_mass_kg.toFixed(1)} kg` });
+        if (c.fat_mass_kg != null) lines.push({ t: `Fat: ${c.fat_mass_kg.toFixed(1)} kg` });
+        if (c.method) lines.push({ t: c.method });
+        if (c.active_phases.length > 0) lines.push({ t: c.active_phases.join(', ') });
+        const boxW = 158;
+        const lineH = 15;
+        const boxH = lines.length * lineH + 10;
+        const bx = px > W - 190 ? px - boxW - 12 : px + 12;
+        const by = Math.max(padT, Math.min(py - boxH / 2, H - boxH - 2));
+        return (
+          <g pointerEvents="none">
+            <rect x={bx} y={by} width={boxW} height={boxH} rx={5}
+                  fill="rgba(9,11,18,0.96)" stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+            {lines.map((ln, i) => (
+              <text key={i} x={bx + 9} y={by + 17 + i * lineH}
+                    fontSize={ln.head ? 11 : 10}
+                    fontWeight={ln.head ? 600 : 400}
+                    fill={ln.head ? '#fff' : 'rgba(255,255,255,0.72)'}>{ln.t}</text>
+            ))}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
